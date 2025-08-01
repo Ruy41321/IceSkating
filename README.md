@@ -102,7 +102,7 @@
 
 ## 👥 Development Team
 
-### 🎮 Executive & Game Designer
+### 🎮 Executive, Game Designer &  Programmer
 **Luigi Pennisi** ([GitHub Profile](https://github.com/Ruy41321))
 - Game concept and design  
 - Complete game mechanics implementation  
