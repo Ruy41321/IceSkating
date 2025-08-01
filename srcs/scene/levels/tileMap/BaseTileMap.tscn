@@ -1,0 +1,44 @@
+[gd_scene load_steps=6 format=3 uid="uid://bbl4ex2u1jr5v"]
+
+[ext_resource type="Texture2D" uid="uid://cpaow5ddoa308" path="res://assets/tileset/arrow_tiles.png" id="1_hca7r"]
+[ext_resource type="Texture2D" uid="uid://5m1lufnbwqwn" path="res://assets/tileset/Tilemap.png" id="4_sm0nc"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_t51k8"]
+texture = ExtResource("1_hca7r")
+texture_region_size = Vector2i(32, 32)
+0:0/0 = 0
+1:0/0 = 0
+0:1/0 = 0
+1:1/0 = 0
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_yotok"]
+texture = ExtResource("4_sm0nc")
+texture_region_size = Vector2i(32, 32)
+0:0/0 = 0
+1:0/0 = 0
+2:0/0 = 0
+3:0/0 = 0
+0:1/0 = 0
+1:1/0 = 0
+2:1/0 = 0
+3:1/0 = 0
+0:2/0 = 0
+1:2/0 = 0
+2:2/0 = 0
+3:2/0 = 0
+0:3/0 = 0
+1:3/0 = 0
+2:3/0 = 0
+3:3/0 = 0
+0:4/0 = 0
+2:4/0 = 0
+1:4/0 = 0
+
+[sub_resource type="TileSet" id="TileSet_k2mp6"]
+tile_size = Vector2i(32, 32)
+physics_layer_0/collision_layer = 1
+sources/0 = SubResource("TileSetAtlasSource_t51k8")
+sources/1 = SubResource("TileSetAtlasSource_yotok")
+
+[node name="BaseTileMap" type="TileMapLayer"]
+tile_set = SubResource("TileSet_k2mp6")

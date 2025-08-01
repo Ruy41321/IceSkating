@@ -1,0 +1,760 @@
+class_name Map_gen
+extends Node
+
+const DIRECTIONS = {
+	RIGHT = 0, LEFT = 1, DOWN = 2, UP = 3, INITIAL = 4
+}
+const DIRECTION_NAMES = ["DESTRA", "SINISTRA", "GIU", "SU"]
+const DIRECTION_VECTORS = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+
+const TERRAIN = {
+	WALL = 'M', ICE = 'G', NORMAL = 'T', START = 'I', END = 'E',
+	FRAGILE_ICE = 'D', HOLE = 'B', BROKEN_ICE = 'X',
+	CONVEYOR_RIGHT = '1', CONVEYOR_LEFT = '2', CONVEYOR_DOWN = '3', CONVEYOR_UP = '4'
+}
+
+# Struttura per restituire risultati di ricerca
+class PathResult:
+	var min_moves: int
+	var full_path: Array[int]
+		
+	func _init(moves: int = 0, path: Array[int] = []):
+		min_moves = moves
+		full_path = path
+
+class DijkstraResult:
+	var distance: Array
+	var parent: Array
+		
+	func _init(dist: Array = [], par: Array = []):
+		distance = dist
+		parent = par
+
+func is_valid_position(x: int, y: int, width: int, height: int) -> bool:
+	return x >= 0 and x < width and y >= 0 and y < height
+
+func direction_to_string(dir: int) -> String:
+	return DIRECTION_NAMES[dir] if dir >= 0 and dir < DIRECTION_NAMES.size() else "SCONOSCIUTA"
+
+func is_terrain_type(map: Array, x: int, y: int, terrain_types: Array) -> bool:
+	return map[y][x] in terrain_types
+
+func is_wall(map: Array, x: int, y: int) -> bool:
+	return map[y][x] == TERRAIN.WALL
+
+func is_ice(map: Array, x: int, y: int) -> bool:
+	return map[y][x] == TERRAIN.ICE
+
+func is_stopping_terrain(map: Array, x: int, y: int) -> bool:
+	return is_terrain_type(map, x, y, [TERRAIN.NORMAL, TERRAIN.START, TERRAIN.END])
+
+func is_conveyor_belt(map: Array, x: int, y: int) -> bool:
+	return is_terrain_type(map, x, y, [TERRAIN.CONVEYOR_RIGHT, TERRAIN.CONVEYOR_LEFT, TERRAIN.CONVEYOR_DOWN, TERRAIN.CONVEYOR_UP])
+
+func get_conveyor_direction(map: Array, x: int, y: int) -> int:
+	var conveyors = {
+		TERRAIN.CONVEYOR_RIGHT: DIRECTIONS.RIGHT,
+		TERRAIN.CONVEYOR_LEFT: DIRECTIONS.LEFT, 
+		TERRAIN.CONVEYOR_DOWN: DIRECTIONS.DOWN,
+		TERRAIN.CONVEYOR_UP: DIRECTIONS.UP
+	}
+	return conveyors.get(map[y][x], -1)
+
+func is_fragile_ice(map: Array, x: int, y: int) -> bool:
+	return map[y][x] == TERRAIN.FRAGILE_ICE
+	
+func is_deadly_terrain(map: Array, x: int, y: int) -> bool:
+	return is_terrain_type(map, x, y, [TERRAIN.HOLE, TERRAIN.BROKEN_ICE])
+
+func break_ice_dict(map: Array, ice_broken_dict: Dictionary) -> Array:
+	for pos in ice_broken_dict.keys():
+		map[pos.y][pos.x] = TERRAIN.BROKEN_ICE
+	return map
+
+func reset_broken_ice(map: Array, ice_broken_dict: Dictionary) -> Array:
+	for pos in ice_broken_dict.keys():
+		map[pos.y][pos.x] = TERRAIN.FRAGILE_ICE
+	return map
+
+# func get_broken_ice_dict(map: Array) -> Dictionary:
+# 	var broken_ice = {}
+# 	for y in range(map.size()):
+# 		for x in range(map[y].size()):
+# 			if map[y][x] == TERRAIN.BROKEN_ICE:
+# 				broken_ice[Vector2i(x, y)] = true
+# 	return broken_ice
+
+func create_simulate_move_result_dict(new_pos: Vector2i, map: Array, ice_broken: Dictionary) -> Array:
+	map = reset_broken_ice(map, ice_broken)
+	return [new_pos, ice_broken]
+
+# Simula il movimento con scivolamento
+func simulate_move(map: Array, ice_broken_dict: Dictionary, x: int, y: int, dx: int, dy: int) -> Array:
+	var width = map[0].size()
+	var height = map.size()
+		
+	var new_pos = Vector2i(x + dx, y + dy)
+		
+	# Controlla validità posizione iniziale
+	if not is_valid_position(new_pos.x, new_pos.y, width, height) or is_wall(map, new_pos.x, new_pos.y):
+		return [Vector2i(x, y), ice_broken_dict]
+		
+	map = break_ice_dict(map, ice_broken_dict)
+	
+	if is_deadly_terrain(map, new_pos.x, new_pos.y):
+		return create_simulate_move_result_dict(new_pos, map, ice_broken_dict)
+		
+	# Copia il dictionary (molto più veloce di array)
+	var new_ice_broken = ice_broken_dict.duplicate()
+
+	# Salva se era ghiaccio fragile PRIMA di trasformarlo
+	var was_fragile_ice = is_fragile_ice(map, new_pos.x, new_pos.y)
+		
+	# Trasforma ghiaccio fragile in buco mortale al passaggio
+	if was_fragile_ice:
+		map[new_pos.y][new_pos.x] = TERRAIN.BROKEN_ICE
+		new_ice_broken[new_pos] = true
+		
+	var current_direction = Vector2i(dx, dy)
+		
+	# Gestisce nastro trasportatore
+	if is_conveyor_belt(map, new_pos.x, new_pos.y):
+		var conv_dir = get_conveyor_direction(map, new_pos.x, new_pos.y)
+		var new_dir = DIRECTION_VECTORS[conv_dir]
+		var pushed_pos = Vector2i(new_pos.x + new_dir[0], new_pos.y + new_dir[1])
+		
+		if is_valid_position(pushed_pos.x, pushed_pos.y, width, height) and not is_wall(map, pushed_pos.x, pushed_pos.y):
+			if is_deadly_terrain(map, pushed_pos.x, pushed_pos.y):
+				return create_simulate_move_result_dict(pushed_pos, map, new_ice_broken)
+			
+			new_pos = pushed_pos
+			current_direction = Vector2i(new_dir[0], new_dir[1])
+			
+			# Salva e trasforma ghiaccio fragile dopo spinta del nastro
+			was_fragile_ice = is_fragile_ice(map, new_pos.x, new_pos.y)
+			if was_fragile_ice:
+				map[new_pos.y][new_pos.x] = TERRAIN.BROKEN_ICE
+				new_ice_broken[new_pos] = true
+	
+		
+	# Scivolamento su ghiaccio
+	var iterations = 0
+	var MAX_ITERATIONS = max(width, height)
+		
+	# USA la variabile salvata invece di controllare la mappa modificata
+	while (is_ice(map, new_pos.x, new_pos.y) or was_fragile_ice) and iterations < MAX_ITERATIONS:
+		iterations += 1
+		var next_pos = Vector2i(new_pos.x + current_direction.x, new_pos.y + current_direction.y)
+		
+		if not is_valid_position(next_pos.x, next_pos.y, width, height) or is_wall(map, next_pos.x, next_pos.y):
+			break
+		
+		new_pos = next_pos
+
+		if is_deadly_terrain(map, new_pos.x, new_pos.y):
+			break
+		
+		# Salva e trasforma ghiaccio fragile durante lo scivolamento
+		was_fragile_ice = is_fragile_ice(map, new_pos.x, new_pos.y)
+		if was_fragile_ice:
+			map[new_pos.y][new_pos.x] = TERRAIN.BROKEN_ICE
+			new_ice_broken[new_pos] = true
+
+		
+		if is_stopping_terrain(map, new_pos.x, new_pos.y):
+			break
+		
+		# Gestione nastri durante scivolamento
+		if is_conveyor_belt(map, new_pos.x, new_pos.y):
+			var conv_dir = get_conveyor_direction(map, new_pos.x, new_pos.y)
+			var new_dir = DIRECTION_VECTORS[conv_dir]
+			var pushed_pos = Vector2i(new_pos.x + new_dir[0], new_pos.y + new_dir[1])
+			
+			if is_valid_position(pushed_pos.x, pushed_pos.y, width, height) and not is_wall(map, pushed_pos.x, pushed_pos.y):
+				if is_deadly_terrain(map, pushed_pos.x, pushed_pos.y):
+					new_pos = pushed_pos
+					break
+				
+				new_pos = pushed_pos
+				current_direction = Vector2i(new_dir[0], new_dir[1])
+				
+				# Trasforma ghiaccio fragile dopo spinta durante scivolamento
+				was_fragile_ice = is_fragile_ice(map, new_pos.x, new_pos.y)
+				if was_fragile_ice:
+					map[new_pos.y][new_pos.x] = TERRAIN.BROKEN_ICE
+					new_ice_broken[new_pos] = true
+		
+				
+				if is_stopping_terrain(map, new_pos.x, new_pos.y):
+					break
+			else:
+				break
+		
+	return create_simulate_move_result_dict(new_pos, map, new_ice_broken)
+
+# Crea una copia profonda della mappa per evitare modifiche durante pathfinding
+func deep_copy_map(map: Array) -> Array:
+	var new_map = []
+	for y in range(map.size()):
+		var row = []
+		for x in range(map[y].size()):
+			row.append(map[y][x])
+		new_map.append(row)
+	return new_map
+
+# Verifica se esiste un percorso valido (con copia della mappa)
+func has_valid_path(map: Array, start_x: int, start_y: int, end_x: int, end_y: int) -> bool:
+	var width = map[0].size()
+	var height = map.size()
+		
+	# Array 3D per stati visitati: [y][x][direzione]
+	var visited = create_3d_array(width, height, 5, false)
+		
+	var queue = []
+	var ice_broken = {}
+	queue.append([start_x, start_y, 4, ice_broken])  # 4 = stato iniziale
+	visited[start_y][start_x][4] = true
+		
+	var dx = [1, -1, 0, 0]
+	var dy = [0, 0, 1, -1]
+		
+	var queue_front = 0
+		
+	while queue_front < queue.size():
+		var current = queue[queue_front]
+		var x = current[0]
+		var y = current[1]
+		queue_front += 1
+		
+		if x == end_x and y == end_y:
+			return true
+		
+		for i in range(4):
+			var result = simulate_move(map, current[3], x, y, dx[i], dy[i])
+			var new_x = result[0].x  #result[0] è posizione dopo il movimento
+			var new_y = result[0].y
+			var new_ice_broken = result[1]  
+
+			if (new_x == x and new_y == y) or is_deadly_terrain(map, new_x, new_y) or new_ice_broken.has(Vector2i(new_x, new_y)):
+				continue
+			
+			if not visited[new_y][new_x][i]:
+				visited[new_y][new_x][i] = true
+				queue.append([new_x, new_y, i, result[1]])  # result[1] è l'asse del ghiaccio rotto
+		
+	return false
+
+func create_3d_array(width: int, height: int, depth: int, default_value = null):
+	var array = []
+	for y in range(height):
+		var row = []
+		for x in range(width):
+			var dirs = []
+			for d in range(depth):
+				dirs.append(default_value)
+			row.append(dirs)
+		array.append(row)
+	return array
+
+# Esegue ricerca Dijkstra
+func run_dijkstra_search(map: Array, start_x: int, start_y: int, end_x: int, end_y: int) -> DijkstraResult:
+	var width = map[0].size()
+	var height = map.size()
+		
+	var distance = create_3d_array(width, height, 5, -1)
+	var parent = create_3d_array(width, height, 5, [-1, -1, -1])
+		
+	var broken_ice = {}
+
+	var queue = [[start_x, start_y, DIRECTIONS.INITIAL, broken_ice]]
+	distance[start_y][start_x][DIRECTIONS.INITIAL] = 0
+		
+	while not queue.is_empty():
+		var current = queue.pop_front()
+		var x = current[0]
+		var y = current[1] 
+		var last_dir = current[2]
+		
+		if x == end_x and y == end_y :
+			#print("trovato percorso : ", distance[y][x][last_dir])
+			return DijkstraResult.new(distance, parent)
+
+		if distance[y][x][last_dir] > MAX_MOVES:
+			#print("interrotto percorso troppo lungo")
+			return null
+
+		for i in range(4):
+			var dir_vec = DIRECTION_VECTORS[i]
+			var result = simulate_move(map, current[3], x, y, dir_vec[0], dir_vec[1])
+			
+			var pos = result[0]  # result[0] è la nuova posizione dopo il movimento
+			var new_ice_broken = result[1]  
+
+			if (pos.x == x and pos.y == y) or is_deadly_terrain(map, pos.x, pos.y) or new_ice_broken.has(pos):
+				continue
+			
+			var move_cost = 1 if (last_dir == DIRECTIONS.INITIAL or last_dir != i) else 0
+			var new_distance = distance[y][x][last_dir] + move_cost
+			
+			if distance[pos.y][pos.x][i] == -1 or distance[pos.y][pos.x][i] > new_distance:
+				distance[pos.y][pos.x][i] = new_distance
+				parent[pos.y][pos.x][i] = [x, y, last_dir]
+				queue.append([pos.x, pos.y, i, result[1]])  # result[1] è l'asse del ghiaccio rotto
+			# elif new_distance > MIN_MOVES:
+			# 	return DijkstraResult.new(distance, parent)
+	#print("nessun percorso trovato")
+	return null
+	#return DijkstraResult.new(distance, parent)
+
+# Trova la migliore direzione finale
+func find_best_final_direction(distance: Array, end_x: int, end_y: int) -> int:
+	var best_dir = -1
+	var min_moves = -1
+		
+	for dir in range(5):
+		if distance[end_y][end_x][dir] != -1:
+			if min_moves == -1 or distance[end_y][end_x][dir] < min_moves:
+				min_moves = distance[end_y][end_x][dir]
+				best_dir = dir
+		
+	return best_dir
+
+# Ricostruisce la sequenza completa di mosse
+func reconstruct_full_move_path(parent: Array, _map: Array, start_x: int, start_y: int, end_x: int, end_y: int, best_dir: int) -> Array[int]:
+	var path_states = []
+	var trace_x = end_x
+	var trace_y = end_y
+	var trace_dir = best_dir
+		
+	while not (trace_x == start_x and trace_y == start_y and trace_dir == 4):
+		path_states.append([trace_x, trace_y, trace_dir])
+		var parent_info = parent[trace_y][trace_x][trace_dir]
+		trace_x = parent_info[0]
+		trace_y = parent_info[1]
+		trace_dir = parent_info[2]
+		
+	path_states.reverse()
+		
+	var full_moves: Array[int] = []
+
+	for state in path_states:
+		full_moves.append(state[2])
+		
+	return full_moves
+
+# Calcola mosse minime e percorso completo
+func calculate_min_moves_and_path(map: Array, start_x: int, start_y: int, end_x: int, end_y: int) -> PathResult:
+	var search_result = run_dijkstra_search(map, start_x, start_y, end_x, end_y)
+	if search_result == null:
+		return PathResult.new(-1, [])
+	var distance = search_result.distance
+	var parent = search_result.parent
+		
+	var best_dir = find_best_final_direction(distance, end_x, end_y)
+		
+	if best_dir == -1:
+		return PathResult.new(-1, [])
+		
+	var min_moves = distance[end_y][end_x][best_dir]
+	if min_moves != -1:
+		var full_path = reconstruct_full_move_path(parent, map, start_x, start_y, end_x, end_y, best_dir)
+		return PathResult.new(min_moves, full_path)
+	else:
+		return PathResult.new(-1, [])
+
+# Crea una mappa vuota con bordi di muri
+func create_empty_map(width: int, height: int) -> Array:
+	var map = []
+	for y in range(height):
+		var row = []
+		for x in range(width):
+			if x == 0 or x == width - 1 or y == 0 or y == height - 1:
+				row.append('M')
+			else:
+				row.append('G')
+		map.append(row)
+	return map
+
+# Posiziona ingresso e uscita casualmente
+# Posiziona ingresso e uscita con distanza minima
+func place_start_and_end(map: Array, start_pos: Array, end_pos: Array):
+	var width = map[0].size()
+	var height = map.size()
+		
+	# Posiziona l'ingresso casualmente
+	start_pos[0] = 1 + randi() % (width - 2)
+	start_pos[1] = 1 + randi() % (height - 2)
+	map[start_pos[1]][start_pos[0]] = 'I'
+		
+	# Trova una posizione per l'uscita sufficientemente lontana
+	var max_attempts = 5
+	var best_distance = 0
+	var best_end_x = -1
+	var best_end_y = -1
+	#print("---------------")
+	for attempt in range(max_attempts):
+		var candidate_x = 1 + randi() % (width - 2)
+		var candidate_y = 1 + randi() % (height - 2)
+		
+		# Calcola la distanza euclidea
+		var distance = sqrt(pow(candidate_x - start_pos[0], 2) + pow(candidate_y - start_pos[1], 2))
+		#print(distance)
+		# Altrimenti, tieni traccia della migliore posizione trovata finora
+		if distance > best_distance:
+			best_distance = distance
+			best_end_x = candidate_x
+			best_end_y = candidate_y
+		
+	# Se non è stata trovata una posizione ideale, usa la migliore disponibile
+	if best_end_x != -1 and best_end_y != -1:
+		end_pos[0] = best_end_x
+		end_pos[1] = best_end_y
+		map[end_pos[1]][end_pos[0]] = 'E'
+	else:
+		print("ma siamo seri")
+	#print(max_attempts)
+
+# Funzione generica per trovare posizioni valide
+func find_valid_position(map: Array, width: int, height: int, start_x: int, start_y: int, end_x: int, end_y: int, max_attempts: int = 50) -> Vector2i:
+	for attempts in range(max_attempts):
+		var x = 1 + randi() % (width - 2)
+		var y = 1 + randi() % (height - 2)
+		if map[y][x] == TERRAIN.ICE and not (x == start_x and y == start_y) and not (x == end_x and y == end_y):
+			return Vector2i(x, y)
+	return Vector2i(-1, -1)
+
+# Funzione generica per aggiungere terreno con callback opzionale
+func add_terrain_generic(map: Array, count: int, start_x: int, start_y: int, end_x: int, end_y: int, max_attempts: int = 50, callback: Callable = Callable()):
+	var width = map[0].size()
+	var height = map.size()
+		
+	for i in range(count):
+		var pos = find_valid_position(map, width, height, start_x, start_y, end_x, end_y, max_attempts)
+		if pos != Vector2i(-1, -1):
+			if callback.is_valid():
+				callback.call(map, pos.x, pos.y, width, height)
+
+# Funzioni callback per diversi tipi di terreno
+func place_normal_terrain(map: Array, x: int, y: int, _width: int, _height: int):
+	map[y][x] = TERRAIN.NORMAL
+
+func place_fragile_ice(map: Array, x: int, y: int, _width: int, _height: int):
+	map[y][x] = TERRAIN.FRAGILE_ICE
+
+func place_deadly_hole(map: Array, x: int, y: int, _width: int, _height: int):
+	map[y][x] = TERRAIN.HOLE
+
+func place_obstacle(map: Array, x: int, y: int, width: int, height: int):
+	var obstacle_size = 1 + randi() % 3
+		
+	for dy in range(obstacle_size):
+		if y + dy >= height - 1:
+			break
+		for dx in range(obstacle_size):
+			if x + dx >= width - 1:
+				break
+			if map[y + dy][x + dx] == TERRAIN.ICE:
+				map[y + dy][x + dx] = TERRAIN.WALL
+
+func place_conveyor_belt(map: Array, x: int, y: int, width: int, height: int):
+	var valid_directions = []
+		
+	for dir in range(4):
+		var target_x = x + DIRECTION_VECTORS[dir][0]
+		var target_y = y + DIRECTION_VECTORS[dir][1]
+		
+		if is_valid_position(target_x, target_y, width, height) and not is_wall(map, target_x, target_y):
+			valid_directions.append(dir + 1)
+		
+	if not valid_directions.is_empty():
+		var random_index = randi() % valid_directions.size()
+		var direction = valid_directions[random_index]
+		map[y][x] = str(direction)
+
+# Funzioni ottimizzate per aggiungere terreni specifici
+func add_normal_terrain(map: Array, difficulty: int, start_x: int, start_y: int, end_x: int, end_y: int):
+	var width = map[0].size()
+	var height = map.size()
+	var count = (width * height) / (15 + difficulty * 5)
+	add_terrain_generic(map, count, start_x, start_y, end_x, end_y, 50, place_normal_terrain)
+
+# molti ammassi di muri
+func add_obstacles(map: Array, difficulty: int, start_x: int, start_y: int, end_x: int, end_y: int):
+	var width = map[0].size()
+	var height = map.size()
+	var count = difficulty * 5 + (width * height) / 25
+	add_terrain_generic(map, count, start_x, start_y, end_x, end_y, 100, place_obstacle)
+
+# singoli muri sparsi
+func add_scattered_walls(map: Array):
+	var width = map[0].size()
+	var height = map.size()
+	var count = (width * height) / 8
+		
+	for i in range(count):
+		var x = 1 + randi() % (width - 2)
+		var y = 1 + randi() % (height - 2)
+		if map[y][x] == TERRAIN.ICE:
+			map[y][x] = TERRAIN.WALL
+
+func add_deadly_holes(map: Array, difficulty: int, start_x: int, start_y: int, end_x: int, end_y: int):
+	if difficulty < 4:
+		return
+		
+	var width = map[0].size()
+	var height = map.size()
+	var count = (difficulty - 2) * 2 + (width * height) / 100
+	add_terrain_generic(map, count, start_x, start_y, end_x, end_y, 50, place_deadly_hole)
+
+func add_fragile_ice(map: Array, difficulty: int, start_x: int, start_y: int, end_x: int, end_y: int):
+	if difficulty < 2:
+		return
+		
+	var width = map[0].size()
+	var height = map.size()
+	var count = (difficulty - 1) * 3 + (width * height) / 80
+	add_terrain_generic(map, count, start_x, start_y, end_x, end_y, 50, place_fragile_ice)
+
+func add_conveyor_belts(map: Array, difficulty: int, start_x: int, start_y: int, end_x: int, end_y: int):
+	if difficulty < 3:
+		return
+		
+	var width = map[0].size()
+	var height = map.size()
+	var count = (difficulty) * 2 + (width * height) / 120
+	add_terrain_generic(map, count, start_x, start_y, end_x, end_y, 50, place_conveyor_belt)
+
+# Genera una singola mappa
+func generate_single_map(width: int, height: int, difficulty: int, positions: Array) -> Array:
+	var map = create_empty_map(width, height)
+	var start_pos = [0, 0]
+	var end_pos = [0, 0]
+		
+	place_start_and_end(map, start_pos, end_pos)
+	positions[0] = start_pos[0]  # start_x
+	positions[1] = start_pos[1]  # start_y
+	positions[2] = end_pos[0]	# end_x
+	positions[3] = end_pos[1]	# end_y
+		
+	add_normal_terrain(map, difficulty, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+	add_obstacles(map, difficulty, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+	add_scattered_walls(map)
+	add_fragile_ice(map, difficulty, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+	add_conveyor_belts(map, difficulty, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+	add_deadly_holes(map, difficulty, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+		
+	return map
+
+# Salva la mappa su file
+func save_map_to_file(filename: String, map: Array, difficulty: int, result: PathResult, width: int, height: int):
+	var maps_dir = "user://maps/"
+	var full_path = maps_dir + filename
+	if not full_path.ends_with(".map"):
+		full_path += ".map"
+		
+	# Verifica se la cartella maps esiste, altrimenti la crea
+	if not DirAccess.dir_exists_absolute(maps_dir):
+		var dir = DirAccess.open("user://")
+		if dir != null:
+			var error = dir.make_dir("maps")
+			if error == OK:
+				print("Cartella maps/ creata con successo in: ", ProjectSettings.globalize_path("user://maps/"))
+			else:
+				print("Errore nella creazione della cartella maps/: ", error)
+				return
+		else:
+			print("Errore: impossibile accedere alla directory user://")
+			return
+		
+	var file = FileAccess.open(full_path, FileAccess.WRITE)
+	if file == null:
+		print("Errore: impossibile creare il file ", full_path)
+		return
+		
+	# Scrivi header
+	file.store_line("# Mappa generata con difficolta: " + str(difficulty))
+	var terrain_desc = "# Terreni: M=Muro, G=Ghiaccio, T=Terreno normale, I=Ingresso, E=Uscita"
+	if difficulty >= 2:
+		terrain_desc += ", D=Ghiaccio fragile (si rompe dopo 1 passaggio)"
+	if difficulty >= 3:
+		terrain_desc += ", B=Buco (mortale)"
+	if difficulty >= 4:
+		terrain_desc += ", 1234=Nastri trasportatori (1=destra, 2=sinistra, 3=giù, 4=su)"
+	file.store_line(terrain_desc)
+		
+	file.store_line("# Mosse minime richieste (cambi direzione): " + str(result.min_moves))
+	file.store_line("# Mosse totali nella sequenza: " + str(result.full_path.size()))
+		
+	var sequence_str = "# Sequenza completa: "
+	for i in range(result.full_path.size()):
+		if i > 0:
+			sequence_str += " -> "
+		sequence_str += direction_to_string(result.full_path[i])
+	file.store_line(sequence_str)
+		
+	file.store_line("width=" + str(width))
+	file.store_line("height=" + str(height))
+	file.store_line("difficulty=" + str(difficulty))
+	file.store_line("min_moves=" + str(result.min_moves))
+	file.store_line("total_moves=" + str(result.full_path.size()))
+	file.store_line("")
+		
+	# Scrivi griglia
+	for y in range(height):
+		var line = ""
+		for x in range(width):
+			line += map[y][x]
+		file.store_line(line)
+		
+	file.close()
+	#print("Mappa salvata in: ", full_path)
+
+# Carica una mappa da file e popola positions
+func get_map_from_file(filepath: String, positions: Array) -> Array:
+	filepath = "res://maps/" + filepath + ".map"
+	var file = FileAccess.open(filepath, FileAccess.READ)
+	if file == null:
+		print("Errore: impossibile aprire il file ", filepath)
+		return []
+		
+	var map = []
+	var start_x = -1
+	var start_y = -1
+	var end_x = -1
+	var end_y = -1
+		
+	while not file.eof_reached():
+		var line = file.get_line().strip_edges()
+		
+		# Salta linee vuote e commenti
+		if line.is_empty() or line.begins_with("#"):
+			continue
+		
+		# Salta parametri di configurazione
+		if line.contains("="):
+			continue
+		
+		# Processa riga della griglia
+		var row = []
+		for i in range(line.length()):
+			var ch = line[i]
+			row.append(ch)
+			
+			# Trova posizioni di ingresso e uscita
+			if ch == TERRAIN.START:
+				start_x = i
+				start_y = map.size()
+			elif ch == TERRAIN.END:
+				end_x = i
+				end_y = map.size()
+		
+		if not row.is_empty():
+			map.append(row)
+		
+	file.close()
+		
+	# Valida che ingresso e uscita siano stati trovati
+	if start_x == -1 or start_y == -1:
+		print("Errore: ingresso (I) non trovato nella mappa")
+		return []
+		
+	if end_x == -1 or end_y == -1:
+		print("Errore: uscita (E) non trovata nella mappa")
+		return []
+		
+	# Popola l'array positions
+	positions[0] = start_x
+	positions[1] = start_y
+	positions[2] = end_x
+	positions[3] = end_y
+		
+	print("Mappa caricata con successo:")
+	print("- Dimensioni: ", map[0].size(), "x", map.size())
+	print("- Ingresso: (", start_x, ",", start_y, ")")
+	print("- Uscita: (", end_x, ",", end_y, ")")
+		
+	return map
+
+func test_map(map_name: String):
+	var positions = [0, 0, 0, 0]  # start_x, start_y, end_x, end_y
+	var map = get_map_from_file(map_name, positions)
+	var result: PathResult
+
+	result = calculate_min_moves_and_path(map, positions[0], positions[1], positions[2], positions[3])
+	
+	print("Sequenza completa di direzioni (", result.full_path.size(), " mosse totali):")
+	
+	for i in range(result.full_path.size()):
+		print(str(i + 1) + ". " + direction_to_string(result.full_path[i]))
+
+var MIN_MOVES
+var MAX_MOVES
+
+# Funzione principale di generazione
+func generate_map(map_name: String, difficulty: String) -> int:
+	var difficulty_level = difficulty.to_int()
+		
+	if difficulty_level < 1 or difficulty_level > 5:
+		print("Errore: la difficolta deve essere tra 1 e 5.")
+		return -1
+		
+	# Parametri configurabili
+	var MIN_SIZE = 10 + difficulty_level * 8
+	var MAX_SIZE = 15 + difficulty_level * 8
+	MIN_MOVES = difficulty_level * 5 + 6
+	MAX_MOVES = (difficulty_level + 1) * 5 + 8
+	var MAX_ATTEMPTS = 1000
+		
+	# Genera dimensioni casuali
+	var width = MIN_SIZE + (randi() % (MAX_SIZE - MIN_SIZE + 1))
+	var height = MIN_SIZE + (randi() % (MAX_SIZE - MIN_SIZE + 1))
+		
+	var map: Array
+	var positions = [0, 0, 0, 0]  # start_x, start_y, end_x, end_y
+	var count = 0
+	var result: PathResult
+		
+	# var map_without_valid_path_count = 0
+	# var map_with_short_path_count = 0
+	# var map_with_long_path_count = 0
+	# var map_good_count = 0
+	# Genera mappe finché non ne trovi una valida
+	#var start_time = Time.get_ticks_msec()
+	while true:
+		count += 1
+		
+		if count > MAX_ATTEMPTS:
+			print("Errore: impossibile generare una mappa valida dopo ", MAX_ATTEMPTS, " tentativi.")
+			break
+			return -104
+		elif count % 100 == 0:
+			print("Tentativo ", count, "/1000...")
+		
+		map = generate_single_map(width, height, difficulty_level, positions)
+		
+		#print("calcolando se ha percorso valido...")
+		result = calculate_min_moves_and_path(map, positions[0], positions[1], positions[2], positions[3])
+		if result.min_moves == -1:
+			#result = PathResult.new(-1, [])
+			# map_without_valid_path_count += 1
+			continue
+		
+		if (result.min_moves >= MIN_MOVES) and result.min_moves != -1:
+			if result.min_moves <= MAX_MOVES:
+				#print("Mappa valida trovata con ", result.min_moves, " mosse.")
+				break
+				#map_good_count += 1
+			else:
+				#print("Mappa valida ma con percorso troppo lungo: ", result.min_moves, " mosse.")
+				# map_with_long_path_count += 1
+				continue
+		#map_with_short_path_count += 1
+	
+	# Salva la mappa
+	save_map_to_file(map_name, map, difficulty_level, result, width, height)
+		
+	print("Mappa valida trovata dopo ", count, " tentativi.")
+	# print("Di cui ", map_without_valid_path_count, " senza percorso valido e ", map_with_short_path_count, " con percorso troppo corto.", " e ", map_with_long_path_count, " con percorso troppo lungo.", " e infine ", map_good_count, " con percorso valido.")
+	print("Numero minimo di mosse richieste: ", MIN_MOVES, " (trovate ", result.min_moves, ")")
+	#print("Tempo impiegato: ", (Time.get_ticks_msec() - start_time) / 1000.0, " secondi dall'avvio della ciclo.")
+	return 0

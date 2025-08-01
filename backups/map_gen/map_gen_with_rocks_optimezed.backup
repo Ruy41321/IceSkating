@@ -1,0 +1,1021 @@
+questa versione funziona ma non stampa il percorso comrpeso di power up e non riporta sempre il percorso piu efficente.
+
+class_name Map_gen
+extends Node
+
+var original_map: Array = []
+
+# Struttura per restituire risultati di ricerca
+class PathResult:
+	var min_moves: int
+	var full_path: Array[int]
+		
+	func _init(moves: int = 0, path: Array[int] = []):
+		min_moves = moves
+		full_path = path
+
+class DijkstraResult:
+	var distance: Array
+	var parent: Array
+		
+	func _init(dist: Array = [], par: Array = []):
+		distance = dist
+		parent = par
+
+# Nuova classe per stati complessi con power-ups e rocce
+class GameState:
+	var x: int
+	var y: int
+	var last_direction: int
+	var has_powerup: bool
+	var powerups_collected: Array  # Posizioni dei power-up raccolti
+	var rocks_positions: Array	 # Posizioni attuali delle rocce
+	var map_state: Array		  # Stato della mappa (per ghiaccio rotto)
+	var push_direction: int  # Direzione di spinta della roccia (-2=destra, -3=sinistra, -4=giù, -1=su)
+	var _cached_key: String = ""  # Cache per la chiave
+	var _key_dirty: bool = true   # Flag se la chiave è da ricalcolare
+		
+
+	func _init(pos_x: int, pos_y: int, dir: int, powerup: bool, collected: Array, rocks: Array, map: Array):
+		x = pos_x
+		y = pos_y
+		last_direction = dir
+		has_powerup = powerup
+		powerups_collected = collected.duplicate()
+		rocks_positions = rocks.duplicate(true)
+		map_state = duplicate_map(map)
+		push_direction = 0
+		_key_dirty = true
+		
+	func duplicate_map(original_map: Array) -> Array:
+		var new_map = []
+		for row in original_map:
+			new_map.append(row.duplicate())
+		return new_map
+		
+	# Utility per convertire array in stringa
+	func array_to_string(arr: Array) -> String:
+		if arr.is_empty():
+			return "[]"
+			
+		var result = "["
+		for i in range(arr.size()):
+			if i > 0:
+				result += ";"
+			
+			if arr[i] is Array:
+				result += "[" + str(arr[i][0]) + ";" + str(arr[i][1]) + "]"
+			else:
+				result += str(arr[i])
+			
+		result += "]"
+		return result
+
+# Aggiorna la funzione get_state_key per essere più robusta
+	func get_state_key() -> String:
+		if not _key_dirty and _cached_key != "":
+			return _cached_key
+		
+		# Ricalcola solo se necessario
+		_cached_key = calculate_state_key()
+		_key_dirty = false
+		return _cached_key
+		
+	func calculate_state_key() -> String:
+		var key = str(x) + "|" + str(y) + "|" + str(last_direction) + "|" + str(has_powerup) + "|"
+		
+		# Posizioni rocce con separatore diverso
+		var rocks_str = ""
+		for i in range(rocks_positions.size()):
+			if i > 0:
+				rocks_str += ";"
+			rocks_str += str(rocks_positions[i][0]) + ":" + str(rocks_positions[i][1])
+		
+		key += rocks_str + "|" + str(powerups_collected.size())
+		return key
+
+
+# Utility per parsare array da stringa
+func parse_array_from_string(array_str: String) -> Array:
+	var result = []
+		
+	# Rimuovi parentesi quadre esterne
+	if array_str.begins_with("[") and array_str.ends_with("]"):
+		array_str = array_str.substr(1, array_str.length() - 2)
+		
+	# Se la stringa è vuota, ritorna array vuoto
+	if array_str.strip_edges() == "":
+		return result
+		
+	# Split per elementi separati da virgola, ma gestisci le sottoliste
+	var elements = []
+	var current_element = ""
+	var bracket_count = 0
+		
+	for i in range(array_str.length()):
+		var ch = array_str[i]
+		
+		if ch == '[':
+			bracket_count += 1
+		elif ch == ']':
+			bracket_count -= 1
+		elif ch == ';' and bracket_count == 0:
+			elements.append(current_element.strip_edges())
+			current_element = ""
+			continue
+		
+		current_element += ch
+		
+	# Aggiungi l'ultimo elemento
+	if current_element.strip_edges() != "":
+		elements.append(current_element.strip_edges())
+		
+	# Converte ogni elemento
+	for element in elements:
+		if element.begins_with("[") and element.ends_with("]"):
+			# È una sottolista [x,y]
+			var sub_str = element.substr(1, element.length() - 2)
+			var coords = sub_str.split(";")
+			if coords.size() == 2:
+				result.append([coords[0].to_int(), coords[1].to_int()])
+		else:
+			# È un singolo valore
+			result.append(element.to_int())
+		
+	return result
+
+# Funzioni utility
+func direction_to_string(dir: int) -> String:
+	match dir:
+		0: return "DESTRA"
+		1: return "SINISTRA" 
+		2: return "GIU"
+		3: return "SU"
+		-1: return "SPINTA-SU"
+		-2: return "SPINTA-DESTRA"
+		-3: return "SPINTA-SINISTRA"
+		-4: return "SPINTA-GIU"
+		_: return "SCONOSCIUTA"
+
+func is_valid_position(x: int, y: int, width: int, height: int) -> bool:
+	return x >= 0 and x < width and y >= 0 and y < height
+
+func is_wall(map: Array, x: int, y: int) -> bool:
+	return map[y][x] == 'M'
+
+func is_ice(map: Array, x: int, y: int) -> bool:
+	return map[y][x] == 'G'
+
+func is_stopping_terrain(map: Array, x: int, y: int) -> bool:
+	return map[y][x] == 'T' or map[y][x] == 'I' or map[y][x] == 'E'
+
+func is_conveyor_belt(map: Array, x: int, y: int) -> bool:
+	var cell = map[y][x]
+	return cell == '1' or cell == '2' or cell == '3' or cell == '4'
+
+func get_conveyor_direction(map: Array, x: int, y: int) -> int:
+	var cell = map[y][x]
+	match cell:
+		'1': return 0  # DESTRA
+		'2': return 1  # SINISTRA
+		'3': return 2  # GIU
+		'4': return 3  # SU
+		_: return -1
+
+func is_fragile_ice(map: Array, x: int, y: int) -> bool:
+	return map[y][x] == 'D'
+
+func is_deadly_terrain(map: Array, x: int, y: int) -> bool:
+	return map[y][x] == 'B' or map[y][x] == 'X'
+
+# Simula il movimento con scivolamento
+func simulate_move_unified(map: Array, x: int, y: int, dx: int, dy: int, rocks: Array = []) -> Vector2i:
+	var width = map[0].size()
+	var height = map.size()
+		
+	var new_x = x + dx
+	var new_y = y + dy
+		
+	if not is_valid_position(new_x, new_y, width, height):
+		return Vector2i(x, y)
+		
+	if is_wall(map, new_x, new_y) or (rocks.size() > 0 and has_rock_at(rocks, new_x, new_y)):
+		return Vector2i(x, y)
+		
+	if is_deadly_terrain(map, new_x, new_y):
+		return Vector2i(new_x, new_y)
+		
+	var current_dx = dx
+	var current_dy = dy
+		
+	# Gestione nastri trasportatori
+	if is_conveyor_belt(map, new_x, new_y):
+		var conveyor_dir = get_conveyor_direction(map, new_x, new_y)
+		var conv_dx = [1, -1, 0, 0]
+		var conv_dy = [0, 0, 1, -1]
+		
+		var pushed_x = new_x + conv_dx[conveyor_dir]
+		var pushed_y = new_y + conv_dy[conveyor_dir]
+		
+		if is_valid_position(pushed_x, pushed_y, width, height) and not is_wall(map, pushed_x, pushed_y) and (rocks.size() == 0 or not has_rock_at(rocks, pushed_x, pushed_y)):
+			new_x = pushed_x
+			new_y = pushed_y
+			current_dx = conv_dx[conveyor_dir]
+			current_dy = conv_dy[conveyor_dir]
+			
+			if is_deadly_terrain(map, new_x, new_y):
+				return Vector2i(new_x, new_y)
+		
+	# Scivolamento su ghiaccio
+	var iterations = 0
+	var MAX_ITERATIONS = max(width, height)
+		
+	while (is_ice(map, new_x, new_y) or is_fragile_ice(map, new_x, new_y)) and iterations < MAX_ITERATIONS:
+		iterations += 1
+		
+		var next_x = new_x + current_dx
+		var next_y = new_y + current_dy
+		
+		if not is_valid_position(next_x, next_y, width, height) or is_wall(map, next_x, next_y) or (rocks.size() > 0 and has_rock_at(rocks, next_x, next_y)):
+			break
+		
+		new_x = next_x
+		new_y = next_y
+		
+		if is_deadly_terrain(map, new_x, new_y) or is_stopping_terrain(map, new_x, new_y):
+			break
+		
+		# Nastri durante scivolamento
+		if is_conveyor_belt(map, new_x, new_y):
+			var conveyor_dir = get_conveyor_direction(map, new_x, new_y)
+			var conv_dx = [1, -1, 0, 0]
+			var conv_dy = [0, 0, 1, -1]
+			
+			var pushed_x = new_x + conv_dx[conveyor_dir]
+			var pushed_y = new_y + conv_dy[conveyor_dir]
+			
+			if is_valid_position(pushed_x, pushed_y, width, height) and not is_wall(map, pushed_x, pushed_y) and (rocks.size() == 0 or not has_rock_at(rocks, pushed_x, pushed_y)):
+				new_x = pushed_x
+				new_y = pushed_y
+				current_dx = conv_dx[conveyor_dir]
+				current_dy = conv_dy[conveyor_dir]
+				
+				if is_deadly_terrain(map, new_x, new_y) or is_stopping_terrain(map, new_x, new_y):
+					break
+			else:
+				break
+		
+	return Vector2i(new_x, new_y)
+
+# Verifica se esiste un percorso valido con power-ups e rocce
+func has_valid_path_with_objects(map: Array, rocks: Array, powerups: Array, start_x: int, start_y: int, end_x: int, end_y: int) -> bool:
+	# Imposta la mappa originale globalmente
+	original_map = []
+	for row in map:
+		original_map.append(row.duplicate())
+		
+	var initial_state = GameState.new(start_x, start_y, 4, false, [], rocks, map)
+	var visited = {}
+	var queue = [initial_state]
+		
+	visited[initial_state.get_state_key()] = true
+		
+	var dx = [1, -1, 0, 0]
+	var dy = [0, 0, 1, -1]
+		
+	while not queue.is_empty():
+		var current_state = queue.pop_front()
+		
+		if current_state.x == end_x and current_state.y == end_y:
+			original_map = []  # Pulisci la mappa originale
+			return true
+		
+		# Prova tutte e 4 le direzioni
+		for i in range(4):
+			var new_states = get_next_states(current_state, i, dx[i], dy[i], powerups)
+			
+			for new_state in new_states:
+				var state_key = new_state.get_state_key()
+				
+				if not visited.has(state_key):
+					visited[state_key] = true
+					queue.append(new_state)
+	original_map = []  
+	return false
+
+# Ottieni tutti i possibili stati successivi da uno stato dato
+func get_next_states(current_state: GameState, direction: int, dx: int, dy: int, all_powerups: Array) -> Array:
+	var next_states = []
+		
+	# OTTIMIZZAZIONE: Controllo rapido se il movimento è possibile
+	var target_x = current_state.x + dx
+	var target_y = current_state.y + dy
+		
+	if (is_valid_position(target_x, target_y, current_state.map_state[0].size(), current_state.map_state.size()) and
+		not is_wall(current_state.map_state, target_x, target_y) and
+		not has_rock_at(current_state.rocks_positions, target_x, target_y)):
+		
+		var normal_move = try_normal_move(current_state, direction, dx, dy, all_powerups)
+		if normal_move != null:
+			next_states.append(normal_move)
+		
+	# Spinta rocce solo se ha power-up
+	if current_state.has_powerup:
+		var rock_push_states = try_rock_pushes(current_state)
+		next_states.append_array(rock_push_states)
+		
+	return next_states
+
+# Prova movimento normale
+func try_normal_move(current_state: GameState, direction: int, dx: int, dy: int, all_powerups: Array) -> GameState:
+	var pos = simulate_move_unified(current_state.map_state, current_state.x, current_state.y, dx, dy, current_state.rocks_positions)
+	var new_x = pos.x
+	var new_y = pos.y
+		
+	# Se non si muove o finisce in terreno mortale, movimento non valido
+	if (new_x == current_state.x and new_y == current_state.y) or is_deadly_terrain(current_state.map_state, new_x, new_y):
+		return null
+		
+	# Crea nuovo stato
+	var new_state = GameState.new(new_x, new_y, direction, current_state.has_powerup, 
+								  current_state.powerups_collected, current_state.rocks_positions, 
+								  current_state.map_state)
+		
+	# Controlla se raccoglie un power-up
+	if not new_state.has_powerup:
+		for powerup_pos in all_powerups:
+			if powerup_pos[0] == new_x and powerup_pos[1] == new_y:
+				# Controlla se non è già stato raccolto
+				var already_collected = false
+				for collected in new_state.powerups_collected:
+					if collected[0] == powerup_pos[0] and collected[1] == powerup_pos[1]:
+						already_collected = true
+						break
+				
+				if not already_collected:
+					new_state.has_powerup = true
+					new_state.powerups_collected.append(powerup_pos)
+					break
+		
+	# Gestisci ghiaccio fragile
+	handle_fragile_ice(new_state, new_x, new_y)
+		
+	return new_state
+
+# Prova a spingere rocce adiacenti
+func try_rock_pushes(current_state: GameState) -> Array:
+	var rock_states = []
+	var adjacent_directions = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+	var push_direction_codes = [-2, -3, -4, -1]
+		
+	# OTTIMIZZAZIONE: Pre-calcola limiti mappa
+	var width = current_state.map_state[0].size()
+	var height = current_state.map_state.size()
+		
+	for i in range(adjacent_directions.size()):
+		var check_dx = adjacent_directions[i][0]
+		var check_dy = adjacent_directions[i][1]
+		var rock_x = current_state.x + check_dx
+		var rock_y = current_state.y + check_dy
+		
+		# OTTIMIZZAZIONE: Controllo rapido limiti
+		if rock_x < 0 or rock_x >= width or rock_y < 0 or rock_y >= height:
+			continue
+		
+		if has_rock_at(current_state.rocks_positions, rock_x, rock_y):
+			var push_dx = check_dx
+			var push_dy = check_dy
+			
+			# OTTIMIZZAZIONE: Controllo rapido se la spinta è possibile
+			var new_rock_x = rock_x + push_dx
+			var new_rock_y = rock_y + push_dy
+			
+			if (is_valid_position(new_rock_x, new_rock_y, width, height) and
+				not is_wall(current_state.map_state, new_rock_x, new_rock_y) and
+				not has_rock_at(current_state.rocks_positions, new_rock_x, new_rock_y)):
+				
+				var new_rocks = push_rock(current_state.map_state, current_state.rocks_positions, rock_x, rock_y, push_dx, push_dy)
+				
+				if new_rocks.size() != current_state.rocks_positions.size() or not arrays_equal(new_rocks, current_state.rocks_positions):
+					var new_state = GameState.new(current_state.x, current_state.y, current_state.last_direction, 
+												  false, current_state.powerups_collected, new_rocks, current_state.map_state)
+					new_state.push_direction = push_direction_codes[i]
+					rock_states.append(new_state)
+		
+	return rock_states
+
+# Gestisce il ghiaccio fragile quando ci si passa sopra
+func handle_fragile_ice(state: GameState, x: int, y: int):
+	if state.map_state[y][x] == 'D':
+		state.map_state[y][x] = 'X'  # Rompe il ghiaccio fragile
+
+# Utility per confrontare array
+func arrays_equal(arr1: Array, arr2: Array) -> bool:
+	if arr1.size() != arr2.size():
+		return false
+		
+	for i in range(arr1.size()):
+		if arr1[i][0] != arr2[i][0] or arr1[i][1] != arr2[i][1]:
+			return false
+		
+	return true
+var max_count = 0
+# Calcola mosse minime e percorso completo con power-ups e rocce
+func calculate_min_moves_with_objects(map: Array, rocks: Array, powerups: Array, start_x: int, start_y: int, end_x: int, end_y: int) -> PathResult:
+	original_map = []
+	for row in map:
+		original_map.append(row.duplicate())
+		
+	var initial_state = GameState.new(start_x, start_y, 4, false, [], rocks, map)
+	var visited = {}
+	var queue = []  # Sostituiremo con PriorityQueue
+	var parent = {}
+	var distance = {}
+		
+	# OTTIMIZZAZIONE 1: Limite di tempo
+	var start_time = Time.get_time_dict_from_system()
+	var MAX_TIME_MS = 5000  # 5 secondi massimo
+		
+	# OTTIMIZZAZIONE 2: Limite agli stati esplorati
+	var MAX_STATES = 50000
+	var states_explored = 0
+		
+	# OTTIMIZZAZIONE 3: Early termination se la soluzione è buona
+	var GOOD_ENOUGH_MOVES = MIN_MOVES
+		
+	var initial_key = initial_state.get_state_key()
+	queue.append([initial_state, 0])
+	distance[initial_key] = 0
+	parent[initial_key] = null
+		
+	var dx = [1, -1, 0, 0]
+	var dy = [0, 0, 1, -1]
+		
+	var best_solution_state = null
+	var best_solution_moves = -1
+		
+	while not queue.is_empty():
+		states_explored += 1
+		
+		# OTTIMIZZAZIONE 4: Controllo tempo/stati
+		if states_explored % 1000 == 0:
+			var elapsed_ms = Time.get_ticks_msec() - start_time
+			
+			print("sono qui senza errori")
+			if elapsed_ms > MAX_TIME_MS or states_explored > MAX_STATES:
+				print("Timeout o limite stati raggiunto. Stati esplorati: ", states_explored)
+				break
+		
+		# Trova lo stato con distanza minima (OTTIMIZZAZIONE: sostituire con heap)
+		var min_idx = find_min_distance_index(queue)
+		
+		var current_data = queue.pop_at(min_idx)
+		var current_state = current_data[0]
+		var current_moves = current_data[1]
+		var current_key = current_state.get_state_key()
+		
+		if visited.has(current_key):
+			continue
+		
+		visited[current_key] = true
+		
+		# Se raggiunto l'obiettivo
+		if current_state.x == end_x and current_state.y == end_y:
+			if best_solution_moves == -1 or current_moves < best_solution_moves:
+				best_solution_moves = current_moves
+				best_solution_state = current_state
+				
+				# OTTIMIZZAZIONE 5: Early termination
+				if best_solution_moves <= GOOD_ENOUGH_MOVES:
+					print("Soluzione abbastanza buona trovata: ", best_solution_moves, " mosse")
+					best_solution_state = null
+					break
+		
+		# OTTIMIZZAZIONE 6: Pruning basato sulla distanza
+		if best_solution_moves != -1 and current_moves >= best_solution_moves:
+			continue
+		
+		# OTTIMIZZAZIONE 7: Limitare la profondità di ricerca
+		if current_moves > MIN_MOVES + 10:  # Non andare troppo oltre il minimo
+			continue
+		
+		# Esplora stati successivi
+		for i in range(4):
+			var next_states = get_next_states(current_state, i, dx[i], dy[i], powerups)
+			
+			for next_state in next_states:
+				var next_key = next_state.get_state_key()
+				
+				var move_cost = calculate_move_cost(current_state, next_state, i)
+				var new_distance = current_moves + move_cost
+				
+				# OTTIMIZZAZIONE 8: Migliore controllo della distanza
+				if (not visited.has(next_key) and 
+					(not distance.has(next_key) or new_distance < distance[next_key])):
+					
+					distance[next_key] = new_distance
+					parent[next_key] = current_key
+					
+					# OTTIMIZZAZIONE 9: Inserimento ordinato nella queue
+					insert_sorted(queue, [next_state, new_distance])
+		
+	if best_solution_state == null:
+		original_map = []
+		return PathResult.new(-1, [])
+		
+	var full_path = reconstruct_path_with_objects(parent, initial_key, best_solution_state.get_state_key(), powerups)
+	original_map = []
+		
+	print("Stati esplorati: ", states_explored)
+	return PathResult.new(best_solution_moves, full_path)
+
+# Ricostruisce il percorso completo con oggetti
+func reconstruct_path_with_objects(parent: Dictionary, start_key: String, end_key: String, _powerups: Array) -> Array[int]:
+	var path_keys = []
+	var current_key = end_key
+		
+	# Ricostruisci la catena di stati
+	while current_key != null and current_key != start_key:
+		path_keys.append(current_key)
+		current_key = parent.get(current_key, null)
+		
+	path_keys.reverse()
+		
+	if path_keys.is_empty():
+		return []
+		
+	# Converte la sequenza di stati in sequenza di mosse
+	var moves: Array[int] = []
+	var dx = [1, -1, 0, 0]
+	var dy = [0, 0, 1, -1]
+		
+	# Ricrea lo stato iniziale
+	var current_state = parse_state_key(start_key)
+	if current_state == null:
+		print("Errore: impossibile creare stato iniziale")
+		return []
+		
+	for path_key in path_keys:
+		var target_state = parse_state_key(path_key)
+		if target_state == null:
+			print("Errore: impossibile creare stato target")
+			continue
+		
+		# Se è una spinta di roccia (stessa posizione, power-up consumato)
+		if (target_state.x == current_state.x and target_state.y == current_state.y and 
+			current_state.has_powerup and not target_state.has_powerup):
+			# Aggiunge una mossa speciale per uso power-up
+			moves.append(target_state.push_direction)  # Mossa speciale: uso power-up
+		else:
+			# Movimento normale - determina la direzione
+			var direction = -1
+			for i in range(4):
+				var test_pos = simulate_move_unified(current_state.map_state, current_state.x, current_state.y, dx[i], dy[i], current_state.rocks_positions)
+				if test_pos.x == target_state.x and test_pos.y == target_state.y:
+					direction = i
+					break
+			
+			if direction != -1:
+				moves.append(direction)
+		
+		current_state = target_state
+		
+	return moves
+
+# Converte una chiave di stato in oggetto GameState (versione semplificata)
+func parse_state_key(key: String) -> GameState:
+	var parts = key.split("|")
+		
+	if parts.size() < 4:
+		print("Errore: chiave stato malformata: ", key)
+		return null
+		
+	var x = parts[0].to_int()
+	var y = parts[1].to_int()
+	var last_dir = parts[2].to_int()
+	var has_powerup = parts[3] == "true"
+		
+	var rocks_positions = []
+	if parts.size() > 4 and parts[4] != "":
+		var rocks_parts = parts[4].split(";")
+		for rock_part in rocks_parts:
+			var coords = rock_part.split(":")
+			if coords.size() == 2:
+				rocks_positions.append([coords[0].to_int(), coords[1].to_int()])
+		
+	var map_state = []
+	if original_map.size() > 0:
+		for row in original_map:
+			map_state.append(row.duplicate())
+		
+	var state = GameState.new(x, y, last_dir, has_powerup, [], rocks_positions, map_state)
+	return state
+
+# Crea una mappa vuota con bordi di muri
+func create_empty_map(width: int, height: int) -> Array:
+	var map = []
+	for y in range(height):
+		var row = []
+		for x in range(width):
+			if x == 0 or x == width - 1 or y == 0 or y == height - 1:
+				row.append('M')
+			else:
+				row.append('G')
+		map.append(row)
+	return map
+
+# Posiziona ingresso e uscita casualmente
+func place_start_and_end(map: Array, start_pos: Array, end_pos: Array):
+	var width = map[0].size()
+	var height = map.size()
+		
+	start_pos[0] = 1 + randi() % (width - 2)
+	start_pos[1] = 1 + randi() % (height - 2)
+	map[start_pos[1]][start_pos[0]] = 'I'
+		
+	while true:
+		end_pos[0] = 1 + randi() % (width - 2)
+		end_pos[1] = 1 + randi() % (height - 2)
+		if not (end_pos[0] == start_pos[0] and end_pos[1] == start_pos[1]):
+			break
+		
+	map[end_pos[1]][end_pos[0]] = 'E'
+
+# UNISCI tutte le funzioni add_* in una sola
+func populate_map(map: Array, difficulty: int, start_x: int, start_y: int, end_x: int, end_y: int):
+	var width = map[0].size()
+	var height = map.size()
+		
+	# Terreno normale
+	add_terrain_type(map, 'T', (width * height) / (35 + difficulty * 5), start_x, start_y, end_x, end_y, ['G'])
+		
+	# Muri interni
+	add_terrain_type(map, 'M', difficulty * 5 + (width * height) / 25, start_x, start_y, end_x, end_y, ['G'])
+		
+	# Muri sparsi
+	add_terrain_type(map, 'M', (width * height) / 15, start_x, start_y, end_x, end_y, ['G'], false)
+		
+	if difficulty >= 2:
+		# Ghiaccio fragile
+		add_terrain_type(map, 'D', (difficulty - 1) * 3 + (width * height) / 80, start_x, start_y, end_x, end_y, ['G'])
+		
+	if difficulty >= 3:
+		# Buchi mortali
+		add_terrain_type(map, 'B', (difficulty - 2) * 2 + (width * height) / 100, start_x, start_y, end_x, end_y, ['G'])
+		
+	if difficulty >= 4:
+		# Nastri trasportatori
+		add_conveyor_belts_optimized(map, (difficulty - 3) * 2 + (width * height) / 120, start_x, start_y, end_x, end_y)
+
+# Funzione generica per aggiungere terreni
+func add_terrain_type(map: Array, terrain_type: String, count: int, start_x: int, start_y: int, end_x: int, end_y: int, valid_on: Array, avoid_start_end: bool = true):
+	var width = map[0].size()
+	var height = map.size()
+		
+	for i in range(count):
+		var attempts = 0
+		while attempts < 50:
+			var x = 1 + randi() % (width - 2)
+			var y = 1 + randi() % (height - 2)
+			
+			if valid_on.has(map[y][x]) and (not avoid_start_end or (not (x == start_x and y == start_y) and not (x == end_x and y == end_y))):
+				map[y][x] = terrain_type
+				break
+			attempts += 1
+
+func add_conveyor_belts_optimized(map: Array, count: int, start_x: int, start_y: int, end_x: int, end_y: int):
+	var width = map[0].size()
+	var height = map.size()
+	var conv_dx = [1, -1, 0, 0]
+	var conv_dy = [0, 0, 1, -1]
+		
+	for i in range(count):
+		var attempts = 0
+		while attempts < 50:
+			var x = 1 + randi() % (width - 2)
+			var y = 1 + randi() % (height - 2)
+			
+			if map[y][x] == 'G' and not (x == start_x and y == start_y) and not (x == end_x and y == end_y):
+				var valid_dirs = []
+				for dir in range(4):
+					var target_x = x + conv_dx[dir]
+					var target_y = y + conv_dy[dir]
+					if is_valid_position(target_x, target_y, width, height) and not is_wall(map, target_x, target_y):
+						valid_dirs.append(dir + 1)
+				
+				if not valid_dirs.is_empty():
+					map[y][x] = str(valid_dirs[randi() % valid_dirs.size()])
+					break
+			attempts += 1
+var MIN_MOVES = 0
+# Funzione principale di generazione
+func generate_map(map_name: String, difficulty: String) -> int:
+	var difficulty_level = difficulty.to_int()
+		
+	if difficulty_level < 1 or difficulty_level > 5:
+		print("Errore: la difficolta deve essere tra 1 e 5.")
+		return -1
+		
+	var MIN_SIZE = 8 + difficulty_level * 2
+	var MAX_SIZE = 15 + difficulty_level * 8
+	MIN_MOVES = difficulty_level * 5 + 3
+	var MAX_ATTEMPTS = 1000
+		
+	var width = MIN_SIZE + (randi() % (MAX_SIZE - MIN_SIZE + 1))
+	var height = MIN_SIZE + (randi() % (MAX_SIZE - MIN_SIZE + 1))
+		
+	var map_data: Dictionary
+	var positions = [0, 0, 0, 0]
+	var count = 0
+	var result: PathResult
+		
+	while true:
+		count += 1
+		
+		if count > MAX_ATTEMPTS:
+			print("Errore: impossibile generare una mappa valida dopo ", MAX_ATTEMPTS, " tentativi.")
+			return -104
+		
+		map_data = generate_single_map_with_objects(width, height, difficulty_level, positions)
+		
+		# Usa il pathfinding complesso con power-ups e rocce
+		if has_valid_path_with_objects(map_data["map"], map_data["rocks"], map_data["powerups"], 
+									   positions[0], positions[1], positions[2], positions[3]):
+			# Usa il nuovo pathfinding complesso per calcolare le mosse minime
+			result = calculate_min_moves_with_objects(map_data["map"], map_data["rocks"], map_data["powerups"],
+													  positions[0], positions[1], positions[2], positions[3])
+		else:
+			result = PathResult.new(-1, [])
+		
+		if count % 100 == 0:
+			print("Tentativo ", count, "/1000...")
+		
+		if result.min_moves >= MIN_MOVES and result.min_moves != -1:
+			break
+		
+	print(max_count)
+	save_map_to_file_with_objects(map_name, map_data["map"], map_data["rocks"], map_data["powerups"], difficulty_level, result, width, height)
+		
+	print("Mappa valida trovata dopo ", count, " tentativi.")
+	print("Numero minimo di mosse richieste: ", result.min_moves)
+
+	return 0
+
+func calculate_move_cost(current_state: GameState, next_state: GameState, direction: int) -> int:
+	# Spinta roccia
+	if (next_state.x == current_state.x and next_state.y == current_state.y and 
+		current_state.has_powerup and not next_state.has_powerup):
+		return 1
+		
+	# Cambio direzione
+	if current_state.last_direction == 4 or current_state.last_direction != direction:
+		return 1
+		
+	return 0
+
+func insert_sorted(queue: Array, item: Array):
+	if queue.size() > 1000:  # Limita la dimensione della queue
+		queue.pop_back()  # Rimuovi l'elemento peggiore
+		
+	# Inserimento semplice (per queue piccole)
+	if queue.size() < 50:
+		queue.append(item)
+		return
+		
+	# Inserimento binario per queue più grandi
+	var left = 0
+	var right = queue.size()
+		
+	while left < right:
+		var mid = (left + right) / 2
+		if queue[mid][1] <= item[1]:
+			left = mid + 1
+		else:
+			right = mid
+		
+	queue.insert(left, item)
+
+func find_min_distance_index(queue: Array) -> int:
+	if queue.size() <= 1:
+		return 0
+		
+	var min_idx = 0
+	var min_dist = queue[0][1]
+		
+	for i in range(1, min(queue.size(), 10)):  # Controlla solo i primi 10
+		if queue[i][1] < min_dist:
+			min_dist = queue[i][1]
+			min_idx = i
+		
+	return min_idx
+
+# Unisci has_rock_at e has_powerup_at
+func has_object_at(objects: Array, x: int, y: int) -> bool:
+	for obj_pos in objects:
+		if obj_pos[0] == x and obj_pos[1] == y:
+			return true
+	return false
+
+# Aggiorna le chiamate
+func has_rock_at(rocks: Array, x: int, y: int) -> bool:
+	return has_object_at(rocks, x, y)
+
+func has_powerup_at(powerups: Array, x: int, y: int) -> bool:
+	return has_object_at(powerups, x, y)
+
+# Aggiorna le funzioni esistenti per usare la versione unificata
+func simulate_move(map: Array, x: int, y: int, dx: int, dy: int) -> Vector2i:
+	return simulate_move_unified(map, x, y, dx, dy, [])
+
+func simulate_move_with_objects(map: Array, rocks: Array, x: int, y: int, dx: int, dy: int) -> Vector2i:
+	return simulate_move_unified(map, x, y, dx, dy, rocks)
+
+# Sposta una roccia
+func push_rock(map: Array, rocks: Array, rock_x: int, rock_y: int, push_dx: int, push_dy: int) -> Array:
+	var new_rocks = rocks.duplicate(true)
+	var width = map[0].size()
+	var height = map.size()
+		
+	var new_rock_x = rock_x + push_dx
+	var new_rock_y = rock_y + push_dy
+		
+	# Controlla se la nuova posizione è valida
+	if not is_valid_position(new_rock_x, new_rock_y, width, height):
+		return new_rocks
+		
+	# Controlla se c'è un muro o un'altra roccia
+	if is_wall(map, new_rock_x, new_rock_y) or has_rock_at(new_rocks, new_rock_x, new_rock_y):
+		return new_rocks
+		
+	# Rimuovi la roccia dalla posizione originale
+	for i in range(new_rocks.size()):
+		if new_rocks[i][0] == rock_x and new_rocks[i][1] == rock_y:
+			new_rocks.remove_at(i)
+			break
+		
+	# Se la roccia cade in un buco o su ghiaccio fragile, non aggiungerla
+	if is_deadly_terrain(map, new_rock_x, new_rock_y):
+		# Se cade su ghiaccio fragile, rompi il ghiaccio
+		if map[new_rock_y][new_rock_x] == 'D':
+			map[new_rock_y][new_rock_x] = 'X'
+		return new_rocks
+		
+	# Aggiungi la roccia nella nuova posizione
+	new_rocks.append([new_rock_x, new_rock_y])
+	return new_rocks
+
+# Genera posizioni casuali per power-ups
+func generate_powerups(map: Array, start_x: int, start_y: int, end_x: int, end_y: int, rocks: Array) -> Array:
+	var width = map[0].size()
+	var height = map.size()
+	var powerups = []
+	var powerup_count = 5  # Base: 5 power-ups
+		
+	for i in range(powerup_count):
+		var attempts = 0
+		while attempts < 100:
+			var x = 1 + randi() % (width - 2)
+			var y = 1 + randi() % (height - 2)
+			
+			# Power-up solo su terreno normale o ghiaccio
+			if (map[y][x] == 'T' or map[y][x] == 'G') and \
+			   not (x == start_x and y == start_y) and \
+			   not (x == end_x and y == end_y) and \
+			   not has_rock_at(rocks, x, y) and \
+			   not has_powerup_at(powerups, x, y):
+				powerups.append([x, y])
+				break
+			attempts += 1
+		
+	return powerups
+
+# Genera posizioni casuali per rocce
+func generate_rocks(map: Array, start_x: int, start_y: int, end_x: int, end_y: int) -> Array:
+	var width = map[0].size()
+	var height = map.size()
+	var rocks = []
+	var rock_count = 5  # Base: 5 rocce
+		
+	for i in range(rock_count):
+		var attempts = 0
+		while attempts < 100:
+			var x = 1 + randi() % (width - 2)
+			var y = 1 + randi() % (height - 2)
+			
+			# Rocce possono stare su qualsiasi terreno tranne muri e terreni mortali
+			if not is_wall(map, x, y) and \
+			   not is_deadly_terrain(map, x, y) and \
+			   not (x == start_x and y == start_y) and \
+			   not (x == end_x and y == end_y) and \
+			   not has_rock_at(rocks, x, y):
+				rocks.append([x, y])
+				break
+			attempts += 1
+		
+	return rocks
+
+# Modifica generate_single_map per includere oggetti
+func generate_single_map_with_objects(width: int, height: int, difficulty: int, positions: Array) -> Dictionary:
+	var map = create_empty_map(width, height)
+	var start_pos = [0, 0]
+	var end_pos = [0, 0]
+		
+	place_start_and_end(map, start_pos, end_pos)
+	positions.assign([start_pos[0], start_pos[1], end_pos[0], end_pos[1]])
+		
+	# Una sola chiamata invece di 6 funzioni separate
+	populate_map(map, difficulty, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+		
+	var rocks = generate_rocks(map, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+	var powerups = generate_powerups(map, start_pos[0], start_pos[1], end_pos[0], end_pos[1], rocks)
+		
+	return {"map": map, "rocks": rocks, "powerups": powerups}
+
+# Modifica save_map_to_file per includere oggetti
+func save_map_to_file_with_objects(filename: String, map: Array, rocks: Array, powerups: Array, difficulty: int, result: PathResult, width: int, height: int):
+	var maps_dir = "user://maps/"
+	var full_path = maps_dir + filename
+	if not full_path.ends_with(".map"):
+		full_path += ".map"
+		
+	# Verifica se la cartella maps esiste, altrimenti la crea
+	if not DirAccess.dir_exists_absolute(maps_dir):
+		var dir = DirAccess.open("user://")
+		if dir != null:
+			var error = dir.make_dir("maps")
+			if error == OK:
+				print("Cartella maps/ creata con successo in: ", ProjectSettings.globalize_path("user://maps/"))
+			else:
+				print("Errore nella creazione della cartella maps/: ", error)
+				return
+		else:
+			print("Errore: impossibile accedere alla directory user://")
+			return
+		
+	var file = FileAccess.open(full_path, FileAccess.WRITE)
+	if file == null:
+		print("Errore: impossibile creare il file ", full_path)
+		return
+		
+	# Scrivi header
+	file.store_line("# Mappa generata con difficolta: " + str(difficulty))
+	var terrain_desc = "# Terreni: M=Muro, G=Ghiaccio, T=Terreno normale, I=Ingresso, E=Uscita"
+	if difficulty >= 2:
+		terrain_desc += ", D=Ghiaccio fragile (si rompe dopo 1 passaggio)"
+	if difficulty >= 3:
+		terrain_desc += ", B=Buco (mortale)"
+	if difficulty >= 4:
+		terrain_desc += ", 1234=Nastri trasportatori (1=destra, 2=sinistra, 3=giù, 4=su)"
+	file.store_line(terrain_desc)
+	file.store_line("# Oggetti: Power-ups (raccoglibili), Rocce (spostabili con power-up)")
+		
+	file.store_line("# Mosse minime richieste (cambi direzione): " + str(result.min_moves))
+	file.store_line("# Mosse totali nella sequenza: " + str(result.full_path.size()))
+		
+	var sequence_str = "# Sequenza completa: "
+	for i in range(result.full_path.size()):
+		if i > 0:
+			sequence_str += " -> "
+		
+		if result.full_path[i] == -1:
+			sequence_str += "POWER-UP"
+		else:
+			sequence_str += direction_to_string(result.full_path[i])
+	file.store_line(sequence_str)
+		
+	file.store_line("width=" + str(width))
+	file.store_line("height=" + str(height))
+	file.store_line("difficulty=" + str(difficulty))
+	file.store_line("min_moves=" + str(result.min_moves))
+	file.store_line("total_moves=" + str(result.full_path.size()))
+	file.store_line("")
+		
+	# Scrivi griglia
+	for y in range(height):
+		var line = ""
+		for x in range(width):
+			line += map[y][x]
+		file.store_line(line)
+		
+	file.store_line("")
+		
+	# Scrivi power-ups
+	var powerup_str = "! power-ups=["
+	for i in range(powerups.size()):
+		if i > 0:
+			powerup_str += ", "
+		powerup_str += "[" + str(powerups[i][0]) + "," + str(powerups[i][1]) + "]"
+	powerup_str += "]"
+	file.store_line(powerup_str)
+		
+	# Scrivi rocce
+	var rocks_str = "! rocks=["
+	for i in range(rocks.size()):
+		if i > 0:
+			rocks_str += ", "
+		rocks_str += "[" + str(rocks[i][0]) + "," + str(rocks[i][1]) + "]"
+	rocks_str += "]"
+	file.store_line(rocks_str)
+		
+	file.close()
+	print("Mappa salvata in: ", full_path)

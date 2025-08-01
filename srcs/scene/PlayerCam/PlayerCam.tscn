@@ -1,0 +1,17 @@
+[gd_scene load_steps=3 format=3 uid="uid://47bx0b871phn"]
+
+[ext_resource type="PackedScene" uid="uid://wnm06gf47v10" path="res://scene/panels/optionPanel/OptionPanel.tscn" id="1_4n2sk"]
+[ext_resource type="Script" uid="uid://dt5p575dq5cyl" path="res://scene/PlayerCam/player_cam.gd" id="1_7pa46"]
+
+[node name="PlayerCam" type="Camera2D"]
+position_smoothing_enabled = true
+script = ExtResource("1_7pa46")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="OptionPanel" parent="CanvasLayer" instance=ExtResource("1_4n2sk")]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5

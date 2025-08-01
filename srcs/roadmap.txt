@@ -1,0 +1,14 @@
+small fix:
+
+da fare:
+
+da aggiungere in futuro:
+
+	Server-side: convertire il generatori mappe in C
+	Server-Side: gestire le mappe (crearne nuove: check-daily | cancellare vecchie: in manutenzione)
+
+	rework grafica (UI)
+
+	http -> https
+
+	aggiungere livello tutorial

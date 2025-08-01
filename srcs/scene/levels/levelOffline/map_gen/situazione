@@ -1,0 +1,6 @@
+
+vedere altre tile speciali (in caso per ampliare la map_gen)
+
+far usare i thread nella map gen (per ottimizzazione)
+
+fare la mappa gen attuale in c++ cosi da farlo eseguire al server (per ottimizzazione)

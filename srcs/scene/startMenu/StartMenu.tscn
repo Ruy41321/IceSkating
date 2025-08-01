@@ -1,0 +1,243 @@
+[gd_scene load_steps=9 format=3 uid="uid://cfetq2f1shkis"]
+
+[ext_resource type="Script" uid="uid://chv7e6kru501l" path="res://scene/startMenu/script/start_menu.gd" id="1_4jp4k"]
+[ext_resource type="Texture2D" uid="uid://d2sugcjt13any" path="res://assets/varie/account.png" id="2_51c2c"]
+[ext_resource type="Theme" uid="uid://lt8fr72a3dia" path="res://art/material/my_theme.tres" id="2_x6pcy"]
+[ext_resource type="Shortcut" uid="uid://b0rv7irccu3ep" path="res://art/material/escape_shortcut.tres" id="3_51c2c"]
+[ext_resource type="PackedScene" uid="uid://tnq66pdgfeof" path="res://scene/panels/accountPanel/AccountPanel.tscn" id="3_t3pd6"]
+[ext_resource type="PackedScene" uid="uid://bqm3w8x7rj7n8" path="res://scene/panels/languagePanel/LanguagePanel.tscn" id="4_language"]
+[ext_resource type="PackedScene" uid="uid://w34si3bssix4" path="res://scene/panels/basicPanel/BasicPanel.tscn" id="5_x6pcy"]
+[ext_resource type="PackedScene" uid="uid://btli7vl7oetpy" path="res://scene/panels/debugPanel/DebugPanel.tscn" id="8_xyf1y"]
+
+[node name="StartMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_4jp4k")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.192157, 0.282353, 0.45098, 1)
+
+[node name="CenterContainer" type="AspectRatioContainer" parent="."]
+process_mode = 3
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MainMenu" type="VBoxContainer" parent="CenterContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("2_x6pcy")
+alignment = 1
+
+[node name="Play" type="Button" parent="CenterContainer/MainMenu"]
+layout_mode = 2
+theme = ExtResource("2_x6pcy")
+text = "Play"
+
+[node name="LeaderboardButton" type="Button" parent="CenterContainer/MainMenu"]
+layout_mode = 2
+theme = ExtResource("2_x6pcy")
+text = "Leaderboard"
+
+[node name="Options" type="Button" parent="CenterContainer/MainMenu"]
+layout_mode = 2
+theme = ExtResource("2_x6pcy")
+text = "Options"
+
+[node name="Credits" type="Button" parent="CenterContainer/MainMenu"]
+layout_mode = 2
+theme = ExtResource("2_x6pcy")
+text = "Credits"
+
+[node name="Info" type="Button" parent="CenterContainer/MainMenu"]
+layout_mode = 2
+theme = ExtResource("2_x6pcy")
+text = "Info"
+
+[node name="Quit" type="Button" parent="CenterContainer/MainMenu"]
+layout_mode = 2
+size_flags_vertical = 4
+theme = ExtResource("2_x6pcy")
+text = "Quit"
+
+[node name="PlayMenu" type="VBoxContainer" parent="CenterContainer"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("2_x6pcy")
+alignment = 1
+
+[node name="TrainingButton" type="Button" parent="CenterContainer/PlayMenu"]
+layout_mode = 2
+text = "Training"
+
+[node name="CareerButton" type="Button" parent="CenterContainer/PlayMenu"]
+layout_mode = 2
+text = "Play"
+
+[node name="RankedButton" type="Button" parent="CenterContainer/PlayMenu"]
+layout_mode = 2
+text = "Ranked"
+
+[node name="Back" type="Button" parent="CenterContainer/PlayMenu"]
+layout_mode = 2
+shortcut = ExtResource("3_51c2c")
+text = "Back"
+
+[node name="LeaderboardMenu" type="VBoxContainer" parent="CenterContainer"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("2_x6pcy")
+alignment = 1
+
+[node name="RankedLeaderboardButton" type="Button" parent="CenterContainer/LeaderboardMenu"]
+layout_mode = 2
+text = "Ranked Leaderboard"
+
+[node name="LevelsLeaderboardButton" type="Button" parent="CenterContainer/LeaderboardMenu"]
+layout_mode = 2
+text = "Levels Leaderboard"
+
+[node name="Back" type="Button" parent="CenterContainer/LeaderboardMenu"]
+layout_mode = 2
+shortcut = ExtResource("3_51c2c")
+text = "Back"
+
+[node name="DifficultySelection" type="VBoxContainer" parent="CenterContainer"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("2_x6pcy")
+alignment = 1
+
+[node name="Easy" type="Button" parent="CenterContainer/DifficultySelection"]
+layout_mode = 2
+text = "Easy"
+
+[node name="Medium" type="Button" parent="CenterContainer/DifficultySelection"]
+layout_mode = 2
+text = "Medium"
+
+[node name="Hard" type="Button" parent="CenterContainer/DifficultySelection"]
+layout_mode = 2
+text = "Hard"
+
+[node name="Back" type="Button" parent="CenterContainer/DifficultySelection"]
+layout_mode = 2
+shortcut = ExtResource("3_51c2c")
+text = "Back"
+
+[node name="MultiplayerSelection" type="VBoxContainer" parent="CenterContainer"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("2_x6pcy")
+alignment = 1
+
+[node name="SinglePlayer" type="Button" parent="CenterContainer/MultiplayerSelection"]
+layout_mode = 2
+text = "Single-Player"
+
+[node name="Multiplayer" type="Button" parent="CenterContainer/MultiplayerSelection"]
+layout_mode = 2
+text = "Multi-Player"
+
+[node name="NewPrivateRoom" type="Button" parent="CenterContainer/MultiplayerSelection"]
+layout_mode = 2
+text = "Create Private Room"
+
+[node name="QuickJoin" type="Button" parent="CenterContainer/MultiplayerSelection"]
+layout_mode = 2
+text = "Quick Join"
+
+[node name="RoomId" type="LineEdit" parent="CenterContainer/MultiplayerSelection"]
+layout_mode = 2
+placeholder_text = "Insert Room Id"
+alignment = 1
+max_length = 6
+
+[node name="Back" type="Button" parent="CenterContainer/MultiplayerSelection"]
+layout_mode = 2
+shortcut = ExtResource("3_51c2c")
+text = "Back"
+
+[node name="ConnectionStatusLabel" type="Label" parent="CenterContainer"]
+custom_minimum_size = Vector2(800, 48)
+layout_mode = 2
+size_flags_vertical = 0
+theme = ExtResource("2_x6pcy")
+text = "Your room_id is xxxx"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="AccountPanel" parent="CenterContainer" instance=ExtResource("3_t3pd6")]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="BasicPanel" parent="CenterContainer" instance=ExtResource("5_x6pcy")]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="LanguagePanel" parent="CenterContainer" instance=ExtResource("4_language")]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="TopRightContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_right = 417.0
+offset_bottom = 512.0
+grow_horizontal = 0
+scale = Vector2(0.185, 0.185)
+
+[node name="AccountButton" type="TextureButton" parent="TopRightContainer"]
+layout_mode = 2
+texture_normal = ExtResource("2_51c2c")
+
+[node name="LanguageButton" type="Button" parent="."]
+layout_mode = 1
+offset_right = 100.0
+offset_bottom = 56.0
+theme = ExtResource("2_x6pcy")
+text = "Language"
+metadata/_edit_lock_ = true
+
+[node name="Server" type="Button" parent="."]
+visible = false
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+theme = ExtResource("2_x6pcy")
+text = "Server"
+
+[node name="DebugPanel" parent="." instance=ExtResource("8_xyf1y")]
+visible = false
+
+[connection signal="pressed" from="Server" to="." method="_on_server_pressed"]

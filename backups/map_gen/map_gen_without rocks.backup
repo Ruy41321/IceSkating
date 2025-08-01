@@ -1,0 +1,674 @@
+class_name Map_gen
+extends Node
+
+# Struttura per restituire risultati di ricerca
+class PathResult:
+    var min_moves: int
+    var full_path: Array[int]
+    
+    func _init(moves: int = 0, path: Array[int] = []):
+        min_moves = moves
+        full_path = path
+
+class DijkstraResult:
+    var distance: Array
+    var parent: Array
+    
+    func _init(dist: Array = [], par: Array = []):
+        distance = dist
+        parent = par
+
+# Funzioni utility
+func direction_to_string(dir: int) -> String:
+    match dir:
+        0: return "DESTRA"
+        1: return "SINISTRA"
+        2: return "GIU"
+        3: return "SU"
+        _: return "SCONOSCIUTA"
+
+func is_valid_position(x: int, y: int, width: int, height: int) -> bool:
+    return x >= 0 and x < width and y >= 0 and y < height
+
+func is_wall(map: Array, x: int, y: int) -> bool:
+    return map[y][x] == 'M'
+
+func is_ice(map: Array, x: int, y: int) -> bool:
+    return map[y][x] == 'G'
+
+func is_stopping_terrain(map: Array, x: int, y: int) -> bool:
+    return map[y][x] == 'T' or map[y][x] == 'I' or map[y][x] == 'E'
+
+func is_conveyor_belt(map: Array, x: int, y: int) -> bool:
+    var cell = map[y][x]
+    return cell == '1' or cell == '2' or cell == '3' or cell == '4'
+
+func get_conveyor_direction(map: Array, x: int, y: int) -> int:
+    var cell = map[y][x]
+    match cell:
+        '1': return 0  # DESTRA
+        '2': return 1  # SINISTRA
+        '3': return 2  # GIU
+        '4': return 3  # SU
+        _: return -1
+
+func is_fragile_ice(map: Array, x: int, y: int) -> bool:
+    return map[y][x] == 'D'
+
+func is_deadly_terrain(map: Array, x: int, y: int) -> bool:
+    return map[y][x] == 'B' or map[y][x] == 'X'
+
+# Simula il movimento con scivolamento
+func simulate_move(map: Array, x: int, y: int, dx: int, dy: int) -> Vector2i:
+    var width = map[0].size()
+    var height = map.size()
+    
+    var new_x = x + dx
+    var new_y = y + dy
+    
+    # Controlla confini
+    if not is_valid_position(new_x, new_y, width, height):
+        return Vector2i(x, y)
+    
+    # Se colpisce un muro, non si muove
+    if is_wall(map, new_x, new_y):
+        return Vector2i(x, y)
+    
+    # Se finisce su un buco o ghiaccio rotto, game over
+    if is_deadly_terrain(map, new_x, new_y):
+        return Vector2i(new_x, new_y)
+    
+    # Direzione attuale di movimento
+    var current_dx = dx
+    var current_dy = dy
+    
+    # Se finisce su un nastro trasportatore
+    if is_conveyor_belt(map, new_x, new_y):
+        var conveyor_dir = get_conveyor_direction(map, new_x, new_y)
+        var conv_dx = [1, -1, 0, 0]
+        var conv_dy = [0, 0, 1, -1]
+        
+        var pushed_x = new_x + conv_dx[conveyor_dir]
+        var pushed_y = new_y + conv_dy[conveyor_dir]
+        
+        if is_valid_position(pushed_x, pushed_y, width, height) and not is_wall(map, pushed_x, pushed_y):
+            new_x = pushed_x
+            new_y = pushed_y
+            
+            current_dx = conv_dx[conveyor_dir]
+            current_dy = conv_dy[conveyor_dir]
+            
+            if is_deadly_terrain(map, new_x, new_y):
+                return Vector2i(new_x, new_y)
+    
+    # Limite di sicurezza per prevenire loop infiniti
+    var iterations = 0
+    var MAX_ITERATIONS = max(width, height)
+    
+    # Continua a scivolare su ghiaccio
+    while (is_ice(map, new_x, new_y) or is_fragile_ice(map, new_x, new_y)) and iterations < MAX_ITERATIONS:
+        iterations += 1
+        
+        var next_x = new_x + current_dx
+        var next_y = new_y + current_dy
+        
+        if not is_valid_position(next_x, next_y, width, height):
+            break
+        
+        if is_wall(map, next_x, next_y):
+            break
+        
+        new_x = next_x
+        new_y = next_y
+        
+        if is_deadly_terrain(map, new_x, new_y):
+            return Vector2i(new_x, new_y)
+        
+        if is_stopping_terrain(map, new_x, new_y):
+            break
+        
+        # Gestione nastri trasportatori durante scivolamento
+        if is_conveyor_belt(map, new_x, new_y):
+            var conveyor_dir = get_conveyor_direction(map, new_x, new_y)
+            var conv_dx = [1, -1, 0, 0]
+            var conv_dy = [0, 0, 1, -1]
+            
+            var pushed_x = new_x + conv_dx[conveyor_dir]
+            var pushed_y = new_y + conv_dy[conveyor_dir]
+            
+            if is_valid_position(pushed_x, pushed_y, width, height) and not is_wall(map, pushed_x, pushed_y):
+                new_x = pushed_x
+                new_y = pushed_y
+                
+                current_dx = conv_dx[conveyor_dir]
+                current_dy = conv_dy[conveyor_dir]
+                
+                if is_deadly_terrain(map, new_x, new_y):
+                    return Vector2i(new_x, new_y)
+                
+                if is_stopping_terrain(map, new_x, new_y):
+                    break
+            else:
+                break
+    
+    return Vector2i(new_x, new_y)
+
+# Verifica se esiste un percorso valido
+func has_valid_path(map: Array, start_x: int, start_y: int, end_x: int, end_y: int) -> bool:
+    var width = map[0].size()
+    var height = map.size()
+    
+    # Array 3D per stati visitati: [y][x][direzione]
+    var visited = []
+    for y in range(height):
+        var row = []
+        for x in range(width):
+            var dirs = []
+            for d in range(5):
+                dirs.append(false)
+            row.append(dirs)
+        visited.append(row)
+    
+    var queue = []
+    queue.append([start_x, start_y, 4])  # 4 = stato iniziale
+    visited[start_y][start_x][4] = true
+    
+    var dx = [1, -1, 0, 0]
+    var dy = [0, 0, 1, -1]
+    
+    var queue_front = 0
+    
+    while queue_front < queue.size():
+        var current = queue[queue_front]
+        var x = current[0]
+        var y = current[1]
+        var last_dir = current[2]
+        queue_front += 1
+        
+        if x == end_x and y == end_y:
+            return true
+        
+        for i in range(4):
+            var pos = simulate_move(map, x, y, dx[i], dy[i])
+            var new_x = pos.x
+            var new_y = pos.y
+            
+            if (new_x == x and new_y == y) or is_deadly_terrain(map, new_x, new_y):
+                continue
+            
+            if not visited[new_y][new_x][i]:
+                visited[new_y][new_x][i] = true
+                queue.append([new_x, new_y, i])
+    
+    return false
+
+# Esegue ricerca Dijkstra
+func run_dijkstra_search(map: Array, start_x: int, start_y: int) -> DijkstraResult:
+    var width = map[0].size()
+    var height = map.size()
+    
+    # Inizializza distance array
+    var distance = []
+    for y in range(height):
+        var row = []
+        for x in range(width):
+            var dirs = []
+            for d in range(5):
+                dirs.append(-1)
+            row.append(dirs)
+        distance.append(row)
+    
+    # Inizializza parent array
+    var parent = []
+    for y in range(height):
+        var row = []
+        for x in range(width):
+            var dirs = []
+            for d in range(5):
+                dirs.append([-1, -1, -1])
+            row.append(dirs)
+        parent.append(row)
+    
+    var queue = []
+    queue.append([start_x, start_y, 4])
+    distance[start_y][start_x][4] = 0
+    
+    var dx = [1, -1, 0, 0]
+    var dy = [0, 0, 1, -1]
+    
+    while not queue.is_empty():
+        var current = queue.pop_front()
+        var x = current[0]
+        var y = current[1]
+        var last_dir = current[2]
+        
+        for i in range(4):
+            var pos = simulate_move(map, x, y, dx[i], dy[i])
+            var new_x = pos.x
+            var new_y = pos.y
+            
+            if (new_x == x and new_y == y) or is_deadly_terrain(map, new_x, new_y):
+                continue
+            
+            var move_cost = 1 if (last_dir == 4 or last_dir != i) else 0
+            var new_distance = distance[y][x][last_dir] + move_cost
+            
+            if distance[new_y][new_x][i] == -1 or distance[new_y][new_x][i] > new_distance:
+                distance[new_y][new_x][i] = new_distance
+                parent[new_y][new_x][i] = [x, y, last_dir]
+                queue.append([new_x, new_y, i])
+    
+    return DijkstraResult.new(distance, parent)
+
+# Trova la migliore direzione finale
+func find_best_final_direction(distance: Array, end_x: int, end_y: int) -> int:
+    var best_dir = -1
+    var min_moves = -1
+    
+    for dir in range(5):
+        if distance[end_y][end_x][dir] != -1:
+            if min_moves == -1 or distance[end_y][end_x][dir] < min_moves:
+                min_moves = distance[end_y][end_x][dir]
+                best_dir = dir
+    
+    return best_dir
+
+# Ricostruisce la sequenza di cambi di direzione
+func reconstruct_direction_changes(parent: Array, start_x: int, start_y: int, end_x: int, end_y: int, best_dir: int) -> Array[int]:
+    var direction_changes: Array[int] = []
+    var trace_x = end_x
+    var trace_y = end_y
+    var trace_dir = best_dir
+    
+    while not (trace_x == start_x and trace_y == start_y and trace_dir == 4):
+        var parent_info = parent[trace_y][trace_x][trace_dir]
+        var parent_x = parent_info[0]
+        var parent_y = parent_info[1]
+        var parent_dir = parent_info[2]
+        
+        if parent_dir == 4 or parent_dir != trace_dir:
+            direction_changes.append(trace_dir)
+        
+        trace_x = parent_x
+        trace_y = parent_y
+        trace_dir = parent_dir
+    
+    direction_changes.reverse()
+    return direction_changes
+
+# Ricostruisce la sequenza completa di mosse
+func reconstruct_full_move_path(parent: Array, map: Array, start_x: int, start_y: int, end_x: int, end_y: int, best_dir: int) -> Array[int]:
+    var path_states = []
+    var trace_x = end_x
+    var trace_y = end_y
+    var trace_dir = best_dir
+    
+    while not (trace_x == start_x and trace_y == start_y and trace_dir == 4):
+        path_states.append([trace_x, trace_y, trace_dir])
+        var parent_info = parent[trace_y][trace_x][trace_dir]
+        trace_x = parent_info[0]
+        trace_y = parent_info[1]
+        trace_dir = parent_info[2]
+    
+    path_states.reverse()
+    
+    var full_moves: Array[int] = []
+    var curr_x = start_x
+    var curr_y = start_y
+    
+    var dx = [1, -1, 0, 0]
+    var dy = [0, 0, 1, -1]
+    
+    for state in path_states:
+        var target_x = state[0]
+        var target_y = state[1]
+        var direction = state[2]
+        
+        while curr_x != target_x or curr_y != target_y:
+            var pos = simulate_move(map, curr_x, curr_y, dx[direction], dy[direction])
+            var next_x = pos.x
+            var next_y = pos.y
+            
+            if next_x == curr_x and next_y == curr_y:
+                break
+            
+            full_moves.append(direction)
+            curr_x = next_x
+            curr_y = next_y
+    
+    return full_moves
+
+# Calcola mosse minime e percorso completo
+func calculate_min_moves_and_path(map: Array, start_x: int, start_y: int, end_x: int, end_y: int) -> PathResult:
+    var search_result = run_dijkstra_search(map, start_x, start_y)
+    var distance = search_result.distance
+    var parent = search_result.parent
+    
+    var best_dir = find_best_final_direction(distance, end_x, end_y)
+    
+    if best_dir == -1:
+        return PathResult.new(-1, [])
+    
+    var min_moves = distance[end_y][end_x][best_dir]
+    if min_moves != -1:
+        var full_path = reconstruct_full_move_path(parent, map, start_x, start_y, end_x, end_y, best_dir)
+        return PathResult.new(min_moves, full_path)
+    else:
+        return PathResult.new(-1, [])
+
+# Crea una mappa vuota con bordi di muri
+func create_empty_map(width: int, height: int) -> Array:
+    var map = []
+    for y in range(height):
+        var row = []
+        for x in range(width):
+            if x == 0 or x == width - 1 or y == 0 or y == height - 1:
+                row.append('M')
+            else:
+                row.append('G')
+        map.append(row)
+    return map
+
+# Posiziona ingresso e uscita casualmente
+func place_start_and_end(map: Array, start_pos: Array, end_pos: Array):
+    var width = map[0].size()
+    var height = map.size()
+    
+    start_pos[0] = 1 + randi() % (width - 2)
+    start_pos[1] = 1 + randi() % (height - 2)
+    map[start_pos[1]][start_pos[0]] = 'I'
+    
+    while true:
+        end_pos[0] = 1 + randi() % (width - 2)
+        end_pos[1] = 1 + randi() % (height - 2)
+        if not (end_pos[0] == start_pos[0] and end_pos[1] == start_pos[1]):
+            break
+    
+    map[end_pos[1]][end_pos[0]] = 'E'
+
+# Aggiunge terreno normale
+func add_normal_terrain(map: Array, difficulty: int, start_x: int, start_y: int, end_x: int, end_y: int):
+    var width = map[0].size()
+    var height = map.size()
+    var normal_terrain_count = (width * height) / (35 + difficulty * 5)
+    
+    for i in range(normal_terrain_count):
+        var x: int
+        var y: int
+        var attempts = 0
+        while attempts < 50:
+            x = 1 + randi() % (width - 2)
+            y = 1 + randi() % (height - 2)
+            if map[y][x] == 'G' and not (x == start_x and y == start_y) and not (x == end_x and y == end_y):
+                break
+            attempts += 1
+        
+        if attempts < 50:
+            map[y][x] = 'T'
+
+# Aggiunge ostacoli
+func add_obstacles(map: Array, difficulty: int, start_x: int, start_y: int, end_x: int, end_y: int):
+    var width = map[0].size()
+    var height = map.size()
+    var internal_walls = difficulty * 5 + (width * height) / 25
+    
+    for i in range(internal_walls):
+        var x: int
+        var y: int
+        var attempts = 0
+        while attempts < 100:
+            x = 1 + randi() % (width - 2)
+            y = 1 + randi() % (height - 2)
+            if map[y][x] == 'G' and not (x == start_x and y == start_y) and not (x == end_x and y == end_y):
+                break
+            attempts += 1
+        
+        if attempts < 100:
+            var obstacle_size = 1 + randi() % 3
+            
+            for dy in range(obstacle_size):
+                if y + dy >= height - 1:
+                    break
+                for dx in range(obstacle_size):
+                    if x + dx >= width - 1:
+                        break
+                    if map[y + dy][x + dx] == 'G':
+                        map[y + dy][x + dx] = 'M'
+
+# Aggiunge muri sparsi
+func add_scattered_walls(map: Array):
+    var width = map[0].size()
+    var height = map.size()
+    var single_walls = (width * height) / 15
+    
+    for i in range(single_walls):
+        var x = 1 + randi() % (width - 2)
+        var y = 1 + randi() % (height - 2)
+        
+        if map[y][x] == 'G':
+            map[y][x] = 'M'
+
+# Aggiunge buchi mortali
+func add_deadly_holes(map: Array, difficulty: int, start_x: int, start_y: int, end_x: int, end_y: int):
+    if difficulty < 3:
+        return
+    
+    var width = map[0].size()
+    var height = map.size()
+    var hole_count = (difficulty - 2) * 2 + (width * height) / 100
+    
+    for i in range(hole_count):
+        var x: int
+        var y: int
+        var attempts = 0
+        while attempts < 50:
+            x = 1 + randi() % (width - 2)
+            y = 1 + randi() % (height - 2)
+            if map[y][x] == 'G' and not (x == start_x and y == start_y) and not (x == end_x and y == end_y):
+                break
+            attempts += 1
+        
+        if attempts < 50:
+            map[y][x] = 'B'
+
+# Aggiunge ghiaccio fragile
+func add_fragile_ice(map: Array, difficulty: int, start_x: int, start_y: int, end_x: int, end_y: int):
+    if difficulty < 2:
+        return
+    
+    var width = map[0].size()
+    var height = map.size()
+    var fragile_count = (difficulty - 1) * 3 + (width * height) / 80
+    
+    for i in range(fragile_count):
+        var x: int
+        var y: int
+        var attempts = 0
+        while attempts < 50:
+            x = 1 + randi() % (width - 2)
+            y = 1 + randi() % (height - 2)
+            if map[y][x] == 'G' and not (x == start_x and y == start_y) and not (x == end_x and y == end_y):
+                break
+            attempts += 1
+        
+        if attempts < 50:
+            map[y][x] = 'D'
+
+# Aggiunge nastri trasportatori
+func add_conveyor_belts(map: Array, difficulty: int, start_x: int, start_y: int, end_x: int, end_y: int):
+    if difficulty < 4:
+        return
+    
+    var width = map[0].size()
+    var height = map.size()
+    var conveyor_count = (difficulty - 3) * 2 + (width * height) / 120
+    
+    var conv_dx = [1, -1, 0, 0]
+    var conv_dy = [0, 0, 1, -1]
+    
+    for i in range(conveyor_count):
+        var x: int
+        var y: int
+        var attempts = 0
+        while attempts < 50:
+            x = 1 + randi() % (width - 2)
+            y = 1 + randi() % (height - 2)
+            if map[y][x] == 'G' and not (x == start_x and y == start_y) and not (x == end_x and y == end_y):
+                break
+            attempts += 1
+        
+        if attempts < 50:
+            var valid_directions = []
+            
+            for dir in range(4):
+                var target_x = x + conv_dx[dir]
+                var target_y = y + conv_dy[dir]
+                
+                if is_valid_position(target_x, target_y, width, height) and not is_wall(map, target_x, target_y):
+                    valid_directions.append(dir + 1)
+            
+            if not valid_directions.is_empty():
+                var random_index = randi() % valid_directions.size()
+                var direction = valid_directions[random_index]
+                map[y][x] = str(direction)
+
+# Genera una singola mappa
+func generate_single_map(width: int, height: int, difficulty: int, positions: Array) -> Array:
+    var map = create_empty_map(width, height)
+    var start_pos = [0, 0]
+    var end_pos = [0, 0]
+    
+    place_start_and_end(map, start_pos, end_pos)
+    positions[0] = start_pos[0]  # start_x
+    positions[1] = start_pos[1]  # start_y
+    positions[2] = end_pos[0]    # end_x
+    positions[3] = end_pos[1]    # end_y
+    
+    add_normal_terrain(map, difficulty, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+    add_obstacles(map, difficulty, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+    add_scattered_walls(map)
+    add_fragile_ice(map, difficulty, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+    add_conveyor_belts(map, difficulty, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+    add_deadly_holes(map, difficulty, start_pos[0], start_pos[1], end_pos[0], end_pos[1])
+    
+    return map
+
+# Funzione principale di generazione
+func generate_map(map_name: String, difficulty: String) -> int:
+    var difficulty_level = difficulty.to_int()
+    
+    if difficulty_level < 1 or difficulty_level > 5:
+        print("Errore: la difficolta deve essere tra 1 e 5.")
+        return -1
+    
+    # Parametri configurabili
+    var MIN_SIZE = 8 + difficulty_level * 2
+    var MAX_SIZE = 15 + difficulty_level * 8
+    var MIN_MOVES = difficulty_level * 5 + 3
+    var MAX_ATTEMPTS = 1000
+    
+    # Genera dimensioni casuali
+    var width = MIN_SIZE + (randi() % (MAX_SIZE - MIN_SIZE + 1))
+    var height = MIN_SIZE + (randi() % (MAX_SIZE - MIN_SIZE + 1))
+    
+    var map: Array
+    var positions = [0, 0, 0, 0]  # start_x, start_y, end_x, end_y
+    var count = 0
+    var result: PathResult
+    
+    # Genera mappe finché non ne trovi una valida
+    while true:
+        count += 1
+        
+        if count > MAX_ATTEMPTS:
+            print("Errore: impossibile generare una mappa valida dopo ", MAX_ATTEMPTS, " tentativi.")
+            return -104
+        
+        map = generate_single_map(width, height, difficulty_level, positions)
+        
+        if has_valid_path(map, positions[0], positions[1], positions[2], positions[3]):
+            result = calculate_min_moves_and_path(map, positions[0], positions[1], positions[2], positions[3])
+        else:
+            result = PathResult.new(-1, [])
+        
+        if count % 100 == 0:
+            print("Tentativo ", count, "/1000...")
+        
+        if result.min_moves >= MIN_MOVES and result.min_moves != -1:
+            break
+    
+    # Salva la mappa
+    save_map_to_file(map_name, map, difficulty_level, result, width, height)
+    
+    print("Mappa valida trovata dopo ", count, " tentativi.")
+    print("Numero minimo di mosse richieste: ", result.min_moves)
+    print("Sequenza completa di direzioni (", result.full_path.size(), " mosse totali):")
+    
+    for i in range(result.full_path.size()):
+        print(str(i + 1) + ". " + direction_to_string(result.full_path[i]))
+    
+    return 0
+
+# Salva la mappa su file
+func save_map_to_file(filename: String, map: Array, difficulty: int, result: PathResult, width: int, height: int):
+    var maps_dir = "user://maps/"
+    var full_path = maps_dir + filename
+    if not full_path.ends_with(".map"):
+        full_path += ".map"
+    
+    # Verifica se la cartella maps esiste, altrimenti la crea
+    if not DirAccess.dir_exists_absolute(maps_dir):
+        var dir = DirAccess.open("user://")
+        if dir != null:
+            var error = dir.make_dir("maps")
+            if error == OK:
+                print("Cartella maps/ creata con successo in: ", ProjectSettings.globalize_path("user://maps/"))
+            else:
+                print("Errore nella creazione della cartella maps/: ", error)
+                return
+        else:
+            print("Errore: impossibile accedere alla directory user://")
+            return
+    
+    var file = FileAccess.open(full_path, FileAccess.WRITE)
+    if file == null:
+        print("Errore: impossibile creare il file ", full_path)
+        return
+    
+    # Scrivi header
+    file.store_line("# Mappa generata con difficolta: " + str(difficulty))
+    var terrain_desc = "# Terreni: M=Muro, G=Ghiaccio, T=Terreno normale, I=Ingresso, E=Uscita"
+    if difficulty >= 2:
+        terrain_desc += ", D=Ghiaccio fragile (si rompe dopo 1 passaggio)"
+    if difficulty >= 3:
+        terrain_desc += ", B=Buco (mortale)"
+    if difficulty >= 4:
+        terrain_desc += ", 1234=Nastri trasportatori (1=destra, 2=sinistra, 3=giù, 4=su)"
+    file.store_line(terrain_desc)
+    
+    file.store_line("# Mosse minime richieste (cambi direzione): " + str(result.min_moves))
+    file.store_line("# Mosse totali nella sequenza: " + str(result.full_path.size()))
+    
+    var sequence_str = "# Sequenza completa: "
+    for i in range(result.full_path.size()):
+        if i > 0:
+            sequence_str += " -> "
+        sequence_str += direction_to_string(result.full_path[i])
+    file.store_line(sequence_str)
+    
+    file.store_line("width=" + str(width))
+    file.store_line("height=" + str(height))
+    file.store_line("difficulty=" + str(difficulty))
+    file.store_line("min_moves=" + str(result.min_moves))
+    file.store_line("total_moves=" + str(result.full_path.size()))
+    file.store_line("")
+    
+    # Scrivi griglia
+    for y in range(height):
+        var line = ""
+        for x in range(width):
+            line += map[y][x]
+        file.store_line(line)
+    
+    file.close()
+    print("Mappa salvata in: ", full_path)

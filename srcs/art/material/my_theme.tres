@@ -1,0 +1,7 @@
+[gd_resource type="Theme" load_steps=2 format=3 uid="uid://lt8fr72a3dia"]
+
+[ext_resource type="FontFile" uid="uid://bpgbgm13eljb5" path="res://art/fonts/Syne_Mono/SyneMono-Regular.ttf" id="1_5k5fy"]
+
+[resource]
+default_font = ExtResource("1_5k5fy")
+default_font_size = 40

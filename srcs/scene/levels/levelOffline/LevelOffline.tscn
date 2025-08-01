@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3 uid="uid://86ijrerfnc6c"]
+
+[ext_resource type="Script" uid="uid://bdab0m8kec32p" path="res://scene/levels/levelOffline/level_offline.gd" id="1_sj30p"]
+[ext_resource type="PackedScene" uid="uid://bbl4ex2u1jr5v" path="res://scene/levels/tileMap/BaseTileMap.tscn" id="2_txgsi"]
+
+[node name="LevelOffline" type="Node2D"]
+script = ExtResource("1_sj30p")
+
+[node name="BaseTileMap" parent="." instance=ExtResource("2_txgsi")]

@@ -1,0 +1,140 @@
+[gd_scene load_steps=9 format=3 uid="uid://tnq66pdgfeof"]
+
+[ext_resource type="Script" uid="uid://b2h1qxmqmujw7" path="res://scene/panels/accountPanel/account_panel.gd" id="1_h18ui"]
+[ext_resource type="Texture2D" uid="uid://u1onlp5anrtf" path="res://assets/varie/Box.png" id="1_igxni"]
+[ext_resource type="Texture2D" uid="uid://b2gwpug7s1ehy" path="res://assets/varie/X_button.png" id="2_h18ui"]
+[ext_resource type="Texture2D" uid="uid://bf6rfoslfuq04" path="res://assets/varie/X_button_focused.png" id="3_uf7li"]
+[ext_resource type="Theme" uid="uid://lt8fr72a3dia" path="res://art/material/my_theme.tres" id="3_vs43a"]
+[ext_resource type="FontFile" uid="uid://bpgbgm13eljb5" path="res://art/fonts/Syne_Mono/SyneMono-Regular.ttf" id="4_rtqod"]
+
+[sub_resource type="InputEventAction" id="InputEventAction_vs43a"]
+action = &"ui_cancel"
+
+[sub_resource type="Shortcut" id="Shortcut_tvf0s"]
+events = [SubResource("InputEventAction_vs43a")]
+
+[node name="AccountPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_h18ui")
+
+[node name="AccountPanel" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("1_igxni")
+
+[node name="LoginStatusLabel" type="Label" parent="AccountPanel"]
+custom_minimum_size = Vector2(800, 0)
+offset_left = -428.0
+offset_top = -297.435
+offset_right = 428.0
+offset_bottom = -242.435
+grow_horizontal = 2
+theme = ExtResource("3_vs43a")
+theme_override_fonts/font = ExtResource("4_rtqod")
+text = "Login Status"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="AspectRatioContainer" type="AspectRatioContainer" parent="AccountPanel"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -580.0
+offset_top = -318.0
+offset_right = -1346.0
+offset_bottom = -859.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(2, 2)
+
+[node name="AccountMenu" type="VBoxContainer" parent="AccountPanel/AspectRatioContainer"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("3_vs43a")
+alignment = 1
+
+[node name="LoginButton" type="Button" parent="AccountPanel/AspectRatioContainer/AccountMenu"]
+layout_mode = 2
+text = "Login"
+
+[node name="RegisterButton" type="Button" parent="AccountPanel/AspectRatioContainer/AccountMenu"]
+layout_mode = 2
+size_flags_vertical = 4
+text = "Register
+"
+
+[node name="CredentialForm" type="VBoxContainer" parent="AccountPanel/AspectRatioContainer"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("3_vs43a")
+alignment = 1
+
+[node name="UsernameLineEdit" type="LineEdit" parent="AccountPanel/AspectRatioContainer/CredentialForm"]
+layout_mode = 2
+placeholder_text = "Username"
+alignment = 1
+
+[node name="PasswordLineEdit" type="LineEdit" parent="AccountPanel/AspectRatioContainer/CredentialForm"]
+layout_mode = 2
+placeholder_text = "Password"
+alignment = 1
+secret = true
+
+[node name="HBoxContainer" type="HBoxContainer" parent="AccountPanel/AspectRatioContainer/CredentialForm"]
+layout_mode = 2
+alignment = 1
+
+[node name="BackAccount" type="Button" parent="AccountPanel/AspectRatioContainer/CredentialForm/HBoxContainer"]
+layout_mode = 2
+text = "Back"
+
+[node name="ConfirmButton" type="Button" parent="AccountPanel/AspectRatioContainer/CredentialForm/HBoxContainer"]
+layout_mode = 2
+text = "Submit"
+
+[node name="PlayerStats" type="RichTextLabel" parent="AccountPanel/AspectRatioContainer"]
+custom_minimum_size = Vector2(398.735, 227.085)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("3_vs43a")
+theme_override_fonts/normal_font = ExtResource("4_rtqod")
+theme_override_font_sizes/normal_font_size = 25
+text = "Username: pippo
+
+Level Completed: 34
+
+Best Score: 20
+
+Rank: 2"
+scroll_active = false
+autowrap_mode = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LogoutButton" type="Button" parent="AccountPanel/AspectRatioContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 8
+theme = ExtResource("3_vs43a")
+theme_override_colors/font_color = Color(0.745098, 0, 0, 1)
+theme_override_font_sizes/font_size = 25
+text = "Logout"
+
+[node name="CloseSettingsPanelButton" type="TextureButton" parent="AccountPanel"]
+offset_left = 436.69
+offset_top = -304.495
+offset_right = 575.69
+offset_bottom = -171.495
+scale = Vector2(0.74, 0.74)
+pivot_offset = Vector2(-1.11, 0)
+size_flags_horizontal = 8
+size_flags_vertical = 0
+shortcut = SubResource("Shortcut_tvf0s")
+texture_normal = ExtResource("2_h18ui")
+texture_focused = ExtResource("3_uf7li")

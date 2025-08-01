@@ -1,0 +1,63 @@
+[gd_scene load_steps=8 format=3 uid="uid://bqm3w8x7rj7n8"]
+
+[ext_resource type="Script" uid="uid://bfljn0u3sppu7" path="res://scene/panels/languagePanel/language_panel.gd" id="1_language"]
+[ext_resource type="Texture2D" uid="uid://u1onlp5anrtf" path="res://assets/varie/Box.png" id="2_language"]
+[ext_resource type="Texture2D" uid="uid://b2gwpug7s1ehy" path="res://assets/varie/X_button.png" id="3_language"]
+[ext_resource type="Texture2D" uid="uid://bf6rfoslfuq04" path="res://assets/varie/X_button_focused.png" id="4_language"]
+[ext_resource type="Theme" uid="uid://lt8fr72a3dia" path="res://art/material/my_theme.tres" id="5_language"]
+
+[sub_resource type="InputEventAction" id="InputEventAction_vs43a"]
+action = &"ui_cancel"
+
+[sub_resource type="Shortcut" id="Shortcut_y3jqi"]
+events = [SubResource("InputEventAction_vs43a")]
+
+[node name="LanguagePanel" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_language")
+
+[node name="PanelSprite" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("2_language")
+
+[node name="AspectRatioContainer" type="AspectRatioContainer" parent="PanelSprite"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -530.0
+offset_top = -326.0
+offset_right = -1302.0
+offset_bottom = -832.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(1.86, 1.86)
+
+[node name="TitleLabel" type="Label" parent="PanelSprite/AspectRatioContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+theme = ExtResource("5_language")
+theme_override_font_sizes/font_size = 40
+text = "Lingua"
+horizontal_alignment = 1
+
+[node name="LanguageContainer" type="VBoxContainer" parent="PanelSprite/AspectRatioContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("5_language")
+alignment = 1
+
+[node name="CloseSettingsPanelButton" type="TextureButton" parent="PanelSprite"]
+offset_left = 436.69
+offset_top = -304.495
+offset_right = 575.69
+offset_bottom = -171.495
+scale = Vector2(0.74, 0.74)
+pivot_offset = Vector2(-1.11, 0)
+size_flags_horizontal = 8
+size_flags_vertical = 0
+shortcut = SubResource("Shortcut_y3jqi")
+texture_normal = ExtResource("3_language")
+texture_focused = ExtResource("4_language")

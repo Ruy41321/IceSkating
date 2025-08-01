@@ -1,0 +1,25 @@
+[gd_scene load_steps=2 format=3 uid="uid://btli7vl7oetpy"]
+
+[ext_resource type="Script" uid="uid://b50v5a7cvgevs" path="res://scene/panels/debugPanel/debug_control_panel.gd" id="1_yjs2u"]
+
+[node name="DebugPanel" type="CanvasLayer"]
+script = ExtResource("1_yjs2u")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="DebugLevelContainer" type="PanelContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="DebugLevelOption" type="OptionButton" parent="VBoxContainer/DebugLevelContainer"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="CategoryList" type="VBoxContainer" parent="VBoxContainer/ScrollContainer"]
+layout_mode = 2
+
+[node name="StatusLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2

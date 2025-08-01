@@ -1,0 +1,133 @@
+[gd_scene load_steps=9 format=3 uid="uid://wnm06gf47v10"]
+
+[ext_resource type="Script" uid="uid://chjdnp3k0bdg7" path="res://scene/panels/optionPanel/option_panel.gd" id="1_20ean"]
+[ext_resource type="Texture2D" uid="uid://u1onlp5anrtf" path="res://assets/varie/Box.png" id="2_8vkx1"]
+[ext_resource type="Material" uid="uid://cp6eobr5tifjc" path="res://art/material/blur.tres" id="2_85rit"]
+[ext_resource type="Theme" uid="uid://lt8fr72a3dia" path="res://art/material/my_theme.tres" id="3_20ean"]
+[ext_resource type="Texture2D" uid="uid://b2gwpug7s1ehy" path="res://assets/varie/X_button.png" id="5_rry0a"]
+[ext_resource type="Texture2D" uid="uid://bf6rfoslfuq04" path="res://assets/varie/X_button_focused.png" id="6_srflk"]
+
+[sub_resource type="InputEventAction" id="InputEventAction_vs43a"]
+action = &"ui_cancel"
+
+[sub_resource type="Shortcut" id="Shortcut_oeyxs"]
+events = [SubResource("InputEventAction_vs43a")]
+
+[node name="OptionPanel" type="Control"]
+z_index = 1
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_20ean")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+material = ExtResource("2_85rit")
+custom_minimum_size = Vector2(1150, 650)
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -590.0
+offset_top = -325.0
+offset_right = -527.0
+offset_bottom = -234.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(2, 2)
+
+[node name="BackgroundSprite" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("2_8vkx1")
+
+[node name="AspectRatioContainer" type="AspectRatioContainer" parent="BackgroundSprite"]
+offset_left = -532.5
+offset_top = -326.0
+offset_right = 40.5
+offset_bottom = 24.0
+scale = Vector2(1.86, 1.86)
+
+[node name="StatusLabel" type="Label" parent="BackgroundSprite/AspectRatioContainer"]
+custom_minimum_size = Vector2(330, 120.195)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+theme = ExtResource("3_20ean")
+theme_override_font_sizes/font_size = 40
+text = "You did 0 moves"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="VolumeButton" type="Button" parent="BackgroundSprite/AspectRatioContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 20
+text = "Volume"
+
+[node name="Menu" type="HBoxContainer" parent="BackgroundSprite/AspectRatioContainer"]
+custom_minimum_size = Vector2(0, 110)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 8
+theme = ExtResource("3_20ean")
+alignment = 1
+
+[node name="BackButton" type="Button" parent="BackgroundSprite/AspectRatioContainer/Menu"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 20
+text = "Back
+"
+
+[node name="RetryButton" type="Button" parent="BackgroundSprite/AspectRatioContainer/Menu"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 20
+text = "Retry
+"
+
+[node name="ContinueButton" type="Button" parent="BackgroundSprite/AspectRatioContainer/Menu"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 20
+text = "Continue
+"
+
+[node name="NextLevelButton" type="Button" parent="BackgroundSprite/AspectRatioContainer/Menu"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 20
+text = "Next Level"
+
+[node name="No" type="Button" parent="BackgroundSprite/AspectRatioContainer/Menu"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 20
+text = "No"
+
+[node name="Yes" type="Button" parent="BackgroundSprite/AspectRatioContainer/Menu"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 20
+text = "Yes"
+
+[node name="CloseVolumeButton" type="TextureButton" parent="BackgroundSprite"]
+offset_left = 436.69
+offset_top = -304.495
+offset_right = 575.69
+offset_bottom = -171.495
+scale = Vector2(0.74, 0.74)
+pivot_offset = Vector2(-1.11, 0)
+size_flags_horizontal = 8
+size_flags_vertical = 0
+shortcut = SubResource("Shortcut_oeyxs")
+texture_normal = ExtResource("5_rry0a")
+texture_focused = ExtResource("6_srflk")

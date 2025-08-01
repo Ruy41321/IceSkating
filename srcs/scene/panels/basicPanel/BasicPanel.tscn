@@ -1,0 +1,114 @@
+[gd_scene load_steps=8 format=3 uid="uid://w34si3bssix4"]
+
+[ext_resource type="Texture2D" uid="uid://u1onlp5anrtf" path="res://assets/varie/Box.png" id="1_1kpd7"]
+[ext_resource type="Script" uid="uid://rr0phy252gxd" path="res://scene/panels/basicPanel/basic_panel.gd" id="1_8ei4l"]
+[ext_resource type="Texture2D" uid="uid://b2gwpug7s1ehy" path="res://assets/varie/X_button.png" id="2_ifk4f"]
+[ext_resource type="Texture2D" uid="uid://bf6rfoslfuq04" path="res://assets/varie/X_button_focused.png" id="3_8ei4l"]
+[ext_resource type="Theme" uid="uid://lt8fr72a3dia" path="res://art/material/my_theme.tres" id="4_ifk4f"]
+
+[sub_resource type="InputEventAction" id="InputEventAction_vs43a"]
+action = &"ui_cancel"
+
+[sub_resource type="Shortcut" id="Shortcut_sqe6f"]
+events = [SubResource("InputEventAction_vs43a")]
+
+[node name="BasicPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = -1152.0
+offset_bottom = -648.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_8ei4l")
+
+[node name="WindowsSprite" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("1_1kpd7")
+
+[node name="AspectRatioContainer" type="AspectRatioContainer" parent="WindowsSprite"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -537.11
+offset_top = -326.0
+offset_right = -1309.11
+offset_bottom = -832.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(1.86, 1.86)
+
+[node name="CreditsLabel" type="RichTextLabel" parent="WindowsSprite/AspectRatioContainer"]
+visible = false
+custom_minimum_size = Vector2(470, 350)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("4_ifk4f")
+bbcode_enabled = true
+text = "[center][b]CREDITS[/b][/center]
+
+[b]Executive Producer:[/b]
+Luigi Pennisi
+
+[b]Game Mechanics:[/b]
+Matteo Camilli
+Luigi Pennisi
+
+[b]Artist:[/b]
+Giuseppe Vigilante
+
+[center]Grazie per aver giocato![/center]"
+autowrap_mode = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="InfoLabel" type="RichTextLabel" parent="WindowsSprite/AspectRatioContainer"]
+visible = false
+custom_minimum_size = Vector2(450, 350)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("4_ifk4f")
+bbcode_enabled = true
+text = "[center][b]COME GIOCARE[/b][/center]
+
+[b]Obiettivo:[/b]
+Trova l'uscita dalla grotta ghiacciata, attento ai buchi ;)
+
+[b]Controlli:[/b]
+• [b]PC:[/b] Usa le frecce direzionali della tastiera
+• [b]Mobile:[/b] Fai swipe nella direzione desiderata
+
+[center]Buona fortuna![/center]"
+autowrap_mode = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Leaderboard" type="RichTextLabel" parent="WindowsSprite/AspectRatioContainer"]
+visible = false
+custom_minimum_size = Vector2(572.585, 350)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("4_ifk4f")
+theme_override_font_sizes/normal_font_size = 30
+theme_override_font_sizes/bold_font_size = 30
+bbcode_enabled = true
+autowrap_mode = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CloseSettingsPanelButton" type="TextureButton" parent="WindowsSprite"]
+offset_left = 436.69
+offset_top = -304.495
+offset_right = 575.69
+offset_bottom = -171.495
+scale = Vector2(0.74, 0.74)
+pivot_offset = Vector2(-1.11, 0)
+size_flags_horizontal = 8
+size_flags_vertical = 0
+shortcut = SubResource("Shortcut_sqe6f")
+texture_normal = ExtResource("2_ifk4f")
+texture_focused = ExtResource("3_8ei4l")
