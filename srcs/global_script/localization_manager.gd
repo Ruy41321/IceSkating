@@ -53,6 +53,10 @@ func load_translations() -> void:
 			"game_create_room": "Crea Stanza Privata",
 			"game_quick_join": "Accesso Rapido",
 			
+			# Modalità classificata
+			"game_ranked_leaderboard": "Classificata",
+			"game_levels_leaderboard": "Carriera",
+
 			# Difficoltà
 			"difficulty_easy": "Facile",
 			"difficulty_medium": "Medio",
@@ -196,6 +200,10 @@ func load_translations() -> void:
 			"game_create_room": "Create Private Room",
 			"game_quick_join": "Quick Join",
 			
+			# Ranked mode
+			"game_ranked_leaderboard": "Ranked",
+			"game_levels_leaderboard": "Career",
+
 			# Difficulty
 			"difficulty_easy": "Easy",
 			"difficulty_medium": "Medium",

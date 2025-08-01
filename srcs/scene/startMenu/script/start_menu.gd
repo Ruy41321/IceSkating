@@ -125,7 +125,9 @@ func update_all_texts() -> void:
 	ranked_button.text = LocalizationManager.get_text("game_ranked")
 	training_button.text = LocalizationManager.get_text("game_training")
 	leaderboard_button.text = LocalizationManager.get_text("game_leaderboard")
-	
+	ranked_leaderboard_button.text = LocalizationManager.get_text("game_ranked_leaderboard")
+	levels_leaderboard_button.text = LocalizationManager.get_text("game_levels_leaderboard")
+
 	# Selezione multiplayer
 	single_player_button.text = LocalizationManager.get_text("game_single_player")
 	multi_player_button.text = LocalizationManager.get_text("game_multiplayer")
