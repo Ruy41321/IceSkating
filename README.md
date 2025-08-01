@@ -2,7 +2,7 @@
 
 *An innovative puzzle game where players navigate through icy cave environments to find the exit. The game features slippery ice mechanics similar to classic Pokémon ice puzzles, combined with modern multiplayer capabilities and procedural map generation for endless gameplay.*
 
-![Game Preview](extra/boot_splash.png)
+![Game Preview](extra/Preview.gif)
 
 ## 🎮 Game Concept
 
@@ -89,10 +89,9 @@
 *For development or local hosting:*
 
 1. **Prerequisites**: Install Docker and Docker Compose  
-2. **Server Build**: Export a dedicated server version of the game in /docker/game_server/build
-3. **Navigate to Docker folder**: `cd docker`  
-4. **Start services**: `docker-compose up`  
-5. **Configure endpoints**: Update IP addresses from in the code to point to local servers  
+2. **Clone this Repository**: [GitHub - Dedicated Server](https://github.com/Ruy41321/IceSkatingDedicatedServer)  
+3. **Start the Containers**: Follow the instruction in the Readme  
+5. **Configure endpoints**: Update IP addresses from in the code to point to your local server  
 
 *The local environment includes:*
 1. **Game server**: headless Godot instance  
@@ -125,11 +124,10 @@
 - **Enhanced Graphics**: More polished visual experience  
 - **Extended Gameplay**: Additional puzzle mechanics and cave types  
 - **Mobile Publishing**: Official release on Play and App Store  
-
-## 📁 Development Resources
-
-- **Asset Storage**: [Google Drive](https://drive.google.com/drive/folders/1GC3aZYG6z29Hg-NGmGQCi6mqa-apE5wk?usp=sharing)
+  
 
 ---
 
 *Ice Skating represents the culmination of complex technical challenges in multiplayer game development, procedural content generation, and cross-platform deployment. Every slide counts in this icy adventure!*
+
+![Game Preview](extra/boot_splash.png)
