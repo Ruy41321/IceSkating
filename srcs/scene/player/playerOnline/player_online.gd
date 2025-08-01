@@ -114,6 +114,10 @@ func _on_animation_finished(animName: String, _has_win: bool) -> void:
 			cam.deactivate()
 			if not other_player.has_fallen:
 				other_player.cam.activate()
+		else:
+			# Single player mode - handle end game like offline mode
+			if is_local_player:
+				LevelManager.handle_end_game(false)
 
 #endregion
 
