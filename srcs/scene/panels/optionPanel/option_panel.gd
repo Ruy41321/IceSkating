@@ -275,6 +275,9 @@ func _on_next_level_button_pressed() -> void:
 		get_tree().call_deferred("change_scene_to_file", GlobalVariables.loading_screen_path)
 
 func display_end_game(has_win_local: bool, win_strike: int = -1) -> void:
+	if is_match_over:
+		_debug_info("End game already displayed, ignoring new call", "MENU")
+		return
 	is_match_over = true
 	continue_button.hide()
 	self.has_win = has_win_local

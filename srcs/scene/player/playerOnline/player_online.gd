@@ -119,6 +119,20 @@ func _on_animation_finished(animName: String, _has_win: bool) -> void:
 			if is_local_player:
 				LevelManager.handle_end_game(false)
 
+func complete_movement(target_position: Vector2) -> void:
+	"""Complete movement and reset state"""
+	position = target_position
+	current_grid_position = final_grid_position
+	on_grid_position_updated()
+	action_state = ActionState.IDLE
+	move_direction = MoveDirection.NONE
+	
+	# Reset movement speed for next movement
+	current_move_speed = base_move_speed
+	
+	# Check if player stopped due to wall collision and play sound
+	check_and_play_wall_collision_sound()
+
 #endregion
 
 #region NETWORK SYNCHRONIZATION

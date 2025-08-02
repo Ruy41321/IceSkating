@@ -14,15 +14,6 @@ func handle_exit_tile() -> void:
 	AudioManager.play_game_sfx("victory")
 	play_fall_animation(true)
 
-func handle_conveyor_belt(direction: MoveDirection, action_name: String) -> void:
-	"""Handle conveyor belt tile effects"""
-	current_animation_direction = direction
-	# Trigger automatic movement in the conveyor direction
-	var event = InputEventAction.new()
-	event.action = action_name
-	event.pressed = true
-	Input.parse_input_event(event)
-
 func _on_animation_finished(animation_name: String, has_win: bool) -> void:
 	"""Handle animation finished events"""
 	if animation_name == "fall":
