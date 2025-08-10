@@ -3,8 +3,8 @@ extends Node
 #region SERVER CONFIGURATION
 
 var MAX_PLAYERS: int = 32
-var SERVER_PORT = 7000
-const SERVER_IP = "ec2-3-67-64-75.eu-central-1.compute.amazonaws.com"
+var SERVER_PORT = 7001
+const SERVER_IP = GlobalVariables.SERVER_IP
 
 #endregion
 
@@ -31,7 +31,7 @@ var level_node: Node = null
 func _ready() -> void:
 	var args = OS.get_cmdline_args()
 	if "--server" in args:
-		SERVER_PORT = int(args[1].replace("--port=", ""))
+		SERVER_PORT = int(args[1].replace("--websocket-port=", ""))
 		MAX_PLAYERS = int(args[2].replace("--max-players=", ""))
 		become_host()
 
@@ -44,14 +44,14 @@ func is_server() -> bool:
 #region SERVER SETUP
 func become_host() -> void:
 	"""Initialize and start the dedicated server"""
-	var peer = ENetMultiplayerPeer.new()
+	var peer = WebSocketMultiplayerPeer.new()
 
-	if peer.create_server(SERVER_PORT, MAX_PLAYERS) != OK:
+	if peer.create_server(SERVER_PORT) != OK:
 		push_error("Failed to start dedicated server")
 		return
 		
 	multiplayer.multiplayer_peer = peer
-	GlobalVariables.d_info("Relay server started: " + SERVER_IP + "::" + str(SERVER_PORT), "NETWORK")
+	GlobalVariables.d_info("websocket server started: " + SERVER_IP + "::" + str(SERVER_PORT), "NETWORK")
 	is_host = true
 	
 	setup_multiplayer_signals()

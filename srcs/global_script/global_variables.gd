@@ -1,5 +1,11 @@
 extends Node
 
+#region IP
+
+const SERVER_IP = "ec2-3-69-237-213.eu-central-1.compute.amazonaws.com"
+
+#endregion
+
 #region SCENE PATHS
 
 var loading_screen_path: String = "res://scene/loadingScreen/LoadingScreen.tscn"

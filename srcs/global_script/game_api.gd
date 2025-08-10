@@ -3,7 +3,8 @@ extends Node
 
 #region CONFIGURATION
 
-const API_BASE_URL_CLIENT = "http://ec2-3-65-2-97.eu-central-1.compute.amazonaws.com:3000"
+const SERVER_IP = GlobalVariables.SERVER_IP
+const API_BASE_URL_CLIENT = "http://" + SERVER_IP + ":3000"
 var REQUEST_TIMEOUT = 15  # HTTP request timeout in seconds
 
 var auth_token: String = ""

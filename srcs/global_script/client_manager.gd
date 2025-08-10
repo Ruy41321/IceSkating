@@ -2,8 +2,8 @@ extends Node
 
 #region CONSTANTS
 
-const SERVER_PORT = 7000
-const SERVER_IP = "ec2-3-65-2-97.eu-central-1.compute.amazonaws.com"
+const SERVER_PORT = 7001
+const SERVER_IP = GlobalVariables.SERVER_IP
 
 #endregion
 
@@ -65,19 +65,24 @@ func become_client(room_id: String) -> void:
 	if is_connecting:
 		GlobalVariables.d_warning("Connection already in progress...", "NETWORK")
 		return
-		
-	var client_peer = ENetMultiplayerPeer.new()
-		
+	
 	var effective_server_ip = SERVER_IP if not LevelManager.use_local_server else "localhost"
-	if client_peer.create_client(effective_server_ip, SERVER_PORT) != OK:
-		push_error("Failed to create client connection")
+	
+	# Use WebSocket for web browsers
+	GlobalVariables.d_info("Using WebSocket connection for web platform", "NETWORK")
+	var client_peer = WebSocketMultiplayerPeer.new()
+	
+	# WebSocket URL format: ws://hostname:port
+	var websocket_url = "ws://" + effective_server_ip + ":" + str(SERVER_PORT)
+	if client_peer.create_client(websocket_url) != OK:
+		push_error("Failed to create WebSocket client connection")
+		GlobalVariables.d_error("WebSocket connection failed to: " + websocket_url, "NETWORK")
 		return
 		
 	multiplayer.multiplayer_peer = client_peer
 	is_connecting = true
 	connection_success = false
 	current_room_id = room_id
-	my_peer_id = multiplayer.get_unique_id()
 	GlobalVariables.d_info("Attempting connection to server: " + effective_server_ip + "::" + str(SERVER_PORT), "NETWORK")
 		
 	setup_connection_timeout()
@@ -89,10 +94,15 @@ func setup_connection_timeout() -> void:
 		
 	connection_timeout_timer = Timer.new()
 	add_child(connection_timeout_timer)
-	connection_timeout_timer.wait_time = 5.0  # 5 second timeout
+	
+	# WebSocket connections might need more time, especially in browsers
+	var timeout_duration = 10.0 if OS.has_feature("web") else 5.0
+	connection_timeout_timer.wait_time = timeout_duration
 	connection_timeout_timer.one_shot = true
 	connection_timeout_timer.timeout.connect(_on_connection_timeout)
 	connection_timeout_timer.start()
+	
+	GlobalVariables.d_debug("Connection timeout set to " + str(timeout_duration) + " seconds", "NETWORK")
 
 func _on_connection_timeout() -> void:
 	"""Handle connection timeout"""
@@ -102,7 +112,6 @@ func _on_connection_timeout() -> void:
 		
 		quit_connection()
 		show_connection_error(LocalizationManager.get_text("connection_timeout"))
-		start_menu_instance._on_multiplayer_button_pressed()
 
 	cleanup_timeout_timer()
 
@@ -124,7 +133,9 @@ func show_connection_error(error_message: String) -> void:
 @rpc("authority")
 func connection_established() -> void:
 	"""Called when connection to server is successfully established"""
-	GlobalVariables.d_info("Connection established with server.", "NETWORK")
+	# Now we can get our unique ID from the server
+	my_peer_id = multiplayer.get_unique_id()
+	GlobalVariables.d_info("Connection established with server. Peer ID: " + str(my_peer_id), "NETWORK")
 	is_connecting = false
 	connection_success = true
 
