@@ -7,7 +7,7 @@ var option_panel: OptionPanel
 var test_specific_difficulty: int = 0  # If > 0, uses this difficulty for testing purposes
 var play_always_with_main_map: bool = false  # If true doesn switch map, useful for testing mechanics
 var use_fake_wins: bool = false  # If true, uses fake wins for testing purposes
-var use_local_server: bool = false  # If true, uses a local server for testing purposes without handling api's / database / authenitcation
+var use_local_server: bool = false  # If true, uses a local server for testing purposes without handling api's / database / authentication
 
 #endregion
 
