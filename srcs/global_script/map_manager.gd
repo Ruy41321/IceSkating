@@ -18,6 +18,10 @@ var generation_completed: bool = false
 var generation_result: Dictionary = {}
 var generation_error: String = ""
 
+# Threading support cache
+var threading_support_cached: bool = false
+var threading_support_result: bool = false
+
 #endregion
 
 #region TILE CONFIGURATION
@@ -266,6 +270,12 @@ func generate_map_threaded(map_name: String, difficulty: String) -> int:
 	Returns:
 		0 on success, 1 on failure
 	"""
+	# Check if threading is actually supported
+	if not await _is_threading_supported():
+		GlobalVariables.d_info("Threading not supported, using direct generation", "MAP_GENERATION")
+		return await _generate_map_direct(map_name, difficulty)
+	
+	GlobalVariables.d_info("Threading supported, using threaded generation", "MAP_GENERATION")
 	initialize_threading_variables()
 	
 	# Start generation thread
@@ -273,9 +283,135 @@ func generate_map_threaded(map_name: String, difficulty: String) -> int:
 	
 	# Monitor progress and cleanup
 	var result = await _monitor_generation_progress()
+	
 	cleanup_threading_resources()
 	
 	return result
+
+func _is_threading_supported() -> bool:
+	"""Check if threading is supported in the current environment"""
+	
+	# Return cached result if we already tested
+	if threading_support_cached:
+		GlobalVariables.d_debug("Using cached threading support result: " + str(threading_support_result), "MAP_GENERATION")
+		return threading_support_result
+	
+	GlobalVariables.d_debug("Testing threading capability...", "MAP_GENERATION")
+	
+	# First, check if we're in a web environment
+	if OS.has_feature("web"):
+		GlobalVariables.d_debug("Web environment detected - performing thread capability test", "MAP_GENERATION")
+		
+		# In web environments, try to test if threading actually works
+		var test_thread = Thread.new()
+		var result = await _test_thread_capability(test_thread)
+		
+		# Cache and return the result
+		threading_support_result = result
+		threading_support_cached = true
+		
+		if result:
+			GlobalVariables.d_debug("Threading is supported in this web environment", "MAP_GENERATION")
+		else:
+			GlobalVariables.d_debug("Threading is not properly supported in this web environment", "MAP_GENERATION")
+		
+		return result
+	else:
+		# On desktop/mobile, assume threading works
+		GlobalVariables.d_debug("Desktop/mobile environment - threading should be supported", "MAP_GENERATION")
+		threading_support_result = true
+		threading_support_cached = true
+		return true
+
+class ThreadTestResult:
+	var completed = false
+	var mutex: Mutex
+	
+	func _init():
+		mutex = Mutex.new()
+	
+	func set_completed():
+		mutex.lock()
+		completed = true
+		mutex.unlock()
+	
+	func is_completed() -> bool:
+		mutex.lock()
+		var result = completed
+		mutex.unlock()
+		return result
+
+func _test_thread_capability(test_thread: Thread) -> bool:
+	"""Test if we can actually use threads by trying to start one"""
+	
+	# Create a shared result object
+	var test_result = ThreadTestResult.new()
+	
+	# Create a test function that sets our flag
+	var test_callable = func():
+		test_result.set_completed()
+	
+	# Try to start the thread
+	var error = test_thread.start(test_callable)
+	if error != OK:
+		GlobalVariables.d_debug("Thread start failed with error code: " + str(error), "MAP_GENERATION")
+		return false
+	
+	# Wait for the operation with a timeout
+	var timeout_counter = 0
+	while timeout_counter < 10:  # Wait up to 1 second
+		await get_tree().create_timer(0.1).timeout
+		
+		if test_result.is_completed():
+			break
+			
+		timeout_counter += 1
+	
+	# Clean up the thread
+	test_thread.wait_to_finish()
+	
+	# Check if the test actually completed
+	var success = test_result.is_completed()
+	
+	if success:
+		GlobalVariables.d_debug("Thread capability test completed successfully", "MAP_GENERATION")
+	else:
+		GlobalVariables.d_debug("Thread test timed out - threading may not be fully supported", "MAP_GENERATION")
+	
+	return success
+
+func _generate_map_direct(map_name: String, difficulty: String) -> int:
+	"""
+	Generate a map directly without threading (browser-safe).
+	
+	Args:
+		map_name: Name for the generated map
+		difficulty: Difficulty level
+		
+	Returns:
+		0 on success, 1 on failure
+	"""
+	const MAX_ATTEMPTS = 3
+	var success = false
+	
+	for attempt in range(MAX_ATTEMPTS):
+		var exit_code = await map_generator.generate_map(map_name, difficulty)
+		
+		if exit_code == 0:
+			var generated_map_path = "user://maps/" + map_name + ".map"
+			
+			if is_valid_map(generated_map_path):
+				success = true
+				break
+		
+		# Wait before retry
+		if attempt < MAX_ATTEMPTS - 1:
+			await get_tree().create_timer((attempt + 1) * 0.5).timeout
+	
+	if success:
+		return 0
+	else:
+		return 1
 
 func initialize_threading_variables() -> void:
 	"""Initialize threading variables for map generation"""
@@ -298,10 +434,12 @@ func _generate_map_thread_func(map_name: String, difficulty: String) -> void:
 	var success = false
 	
 	for attempt in range(MAX_ATTEMPTS):
-		var exit_code = map_generator.generate_map(map_name, difficulty)
+		# Note: Can't use await in threads, so we use the synchronous version
+		var exit_code = map_generator.generate_map_sync(map_name, difficulty)
 		
 		if exit_code == 0:
 			var generated_map_path = "user://maps/" + map_name + ".map"
+			
 			if is_valid_map(generated_map_path):
 				success = true
 				break

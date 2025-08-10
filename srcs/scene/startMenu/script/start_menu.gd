@@ -55,6 +55,12 @@ extends Control
 ## 4 -> Difficulty Selection |
 ## 5 -> Leaderboard Menu |
 func set_panel_visibility(panel_id: int = 0):
+	single_player_button.show()
+	multi_player_button.show()
+	career_button.show()
+	training_button.show()
+	ranked_button.show()
+	leaderboard_button.show()
 	main_menu.hide()
 	play_menu.hide()
 	difficulty_selection.hide()
@@ -236,16 +242,20 @@ func _on_ranked_button_pressed() -> void:
 		# In ranked mode, skip multiplayer selection and go directly to single player
 		LevelManager.is_ranked_mode = true
 		ClientManager.become_client("ranked")
-		set_panel_visibility(0)
+		career_button.hide()
+		training_button.hide()
+		ranked_button.hide()
 		connection_status_label.text = LocalizationManager.get_text("game_connecting")
 		connection_status_label.visible = 1
 
 func _on_single_player_button_pressed() -> void:
 	AudioManager.play_ui_sound("click")
+	connection_status_label.text = LocalizationManager.get_text("game_connecting")
+	connection_status_label.visible = 1
 	LevelManager.is_ranked_mode = false  # Reset ranked mode for normal play
 	ClientManager.become_client("single_player")
-	single_player_button.visible = 0
-	multi_player_button.visible = 0
+	single_player_button.hide()
+	multi_player_button.hide()
 
 func _on_multi_player_button_pressed() -> void:
 	AudioManager.play_ui_sound("click")

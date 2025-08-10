@@ -21,14 +21,41 @@ func process_map_loading() -> void:
 		get_tree().call_deferred("change_scene_to_file", GlobalVariables.start_menu_path)
 		return
 	
-	MapManager.set_map_grid(MapManager.get_map_data(file_path).get("grid", []))	
-	LevelManager.tilemap = load(GlobalVariables.tilemap_path).instantiate()
+	var map_data = MapManager.get_map_data(file_path)
+	if map_data == null:
+		GlobalVariables.map_gen_error = true
+		get_tree().call_deferred("change_scene_to_file", GlobalVariables.start_menu_path)
+		return
+	
+	var grid = map_data.get("grid", [])
+	if grid.is_empty():
+		GlobalVariables.map_gen_error = true
+		get_tree().call_deferred("change_scene_to_file", GlobalVariables.start_menu_path)
+		return
+	
+	MapManager.set_map_grid(grid)
+	
+	if not ResourceLoader.exists(GlobalVariables.tilemap_path):
+		GlobalVariables.map_gen_error = true
+		get_tree().call_deferred("change_scene_to_file", GlobalVariables.start_menu_path)
+		return
+	
+	var tilemap_resource = load(GlobalVariables.tilemap_path)
+	if tilemap_resource == null:
+		GlobalVariables.map_gen_error = true
+		get_tree().call_deferred("change_scene_to_file", GlobalVariables.start_menu_path)
+		return
+	
+	LevelManager.tilemap = tilemap_resource.instantiate()
+	if LevelManager.tilemap == null:
+		GlobalVariables.map_gen_error = true
+		get_tree().call_deferred("change_scene_to_file", GlobalVariables.start_menu_path)
+		return
+	
 	load_map_from_grid(MapManager.get_map_grid())
 
 	# Use call_deferred to ensure proper scene transition
-	get_tree().call_deferred("change_scene_to_file", GlobalVariables.level_offline_path)
-
-#region MAP LOADING
+	get_tree().call_deferred("change_scene_to_file", GlobalVariables.level_offline_path)#region MAP LOADING
 
 func load_map_from_grid(grid: Array) -> int:
 	"""
@@ -46,7 +73,7 @@ func load_map_from_grid(grid: Array) -> int:
 		
 	GlobalVariables.d_debug("Loading map from grid...", "MAP_GENERATION")
 	GlobalVariables.d_debug("Grid dimensions: " + str(grid[0].length()) + "x" + str(grid.size()), "MAP_GENERATION")
-		
+	
 	process_grid_data(grid)
 		
 	GlobalVariables.d_info("Map loaded successfully from grid", "MAP_GENERATION")
