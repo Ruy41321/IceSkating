@@ -51,6 +51,7 @@ static func create_simulate_move_result_dict(new_pos: Vector2i, map: Array, ice_
 static func simulate_move(map: Array, ice_broken_dict: Dictionary, x: int, y: int, dx: int, dy: int) -> Array:
 	var width = map[0].size()
 	var height = map.size()
+	var start_pos = Vector2i(x, y)  # Salviamo la posizione iniziale
 		
 	var new_pos = Vector2i(x + dx, y + dy)
 		
@@ -66,87 +67,106 @@ static func simulate_move(map: Array, ice_broken_dict: Dictionary, x: int, y: in
 	# Copia il dictionary (molto più veloce di array)
 	var new_ice_broken = ice_broken_dict.duplicate()
 
-	# Salva se era ghiaccio fragile PRIMA di trasformarlo
+	# Salva se era ghiaccio fragile PRIMA di modificare la mappa
 	var was_fragile_ice = is_fragile_ice(map, new_pos.x, new_pos.y)
-		
-	# Trasforma ghiaccio fragile in buco mortale al passaggio
+	
+	# IMPORTANTE: Non rompere subito il ghiaccio fragile, solo registrarlo per dopo
+	# Il ghiaccio fragile si può attraversare, ma si rompe quando lo si LASCIA
 	if was_fragile_ice:
-		map[new_pos.y][new_pos.x] = MapConstants.TERRAIN.BROKEN_ICE
 		new_ice_broken[new_pos] = true
+		# NON trasformiamo ancora il ghiaccio - lo faremo alla fine
 		
 	var current_direction = Vector2i(dx, dy)
-		
-	# Gestisce nastro trasportatore
-	if is_conveyor_belt(map, new_pos.x, new_pos.y):
-		var conv_dir = get_conveyor_direction(map, new_pos.x, new_pos.y)
-		var new_dir = MapConstants.DIRECTION_VECTORS[conv_dir]
-		var pushed_pos = Vector2i(new_pos.x + new_dir[0], new_pos.y + new_dir[1])
-		
-		if is_valid_position(pushed_pos.x, pushed_pos.y, width, height) and not is_wall(map, pushed_pos.x, pushed_pos.y):
-			if is_deadly_terrain(map, pushed_pos.x, pushed_pos.y):
-				return create_simulate_move_result_dict(pushed_pos, map, new_ice_broken)
-			
-			new_pos = pushed_pos
-			current_direction = Vector2i(new_dir[0], new_dir[1])
-			
-			# Salva e trasforma ghiaccio fragile dopo spinta del nastro
-			was_fragile_ice = is_fragile_ice(map, new_pos.x, new_pos.y)
-			if was_fragile_ice:
-				map[new_pos.y][new_pos.x] = MapConstants.TERRAIN.BROKEN_ICE
-				new_ice_broken[new_pos] = true
 	
-		
-	# Scivolamento su ghiaccio
+	# Sistema di rilevamento loop: teniamo traccia dei conveyor belt visitati
+	var visited_conveyors = {}
+	
+	# Sistema integrado: gestione movimento con conveyor belt e scivolamento
 	var iterations = 0
-	var MAX_ITERATIONS = max(width, height)
-		
-	# USA la variabile salvata invece di controllare la mappa modificata
-	while (is_ice(map, new_pos.x, new_pos.y) or was_fragile_ice) and iterations < MAX_ITERATIONS:
+	var MAX_ITERATIONS = max(width, height) * 2  # Aumentato per gestire conveyor belt complessi
+	
+	while iterations < MAX_ITERATIONS:
 		iterations += 1
-		var next_pos = Vector2i(new_pos.x + current_direction.x, new_pos.y + current_direction.y)
 		
-		if not is_valid_position(next_pos.x, next_pos.y, width, height) or is_wall(map, next_pos.x, next_pos.y):
-			break
+		# Prima gestiamo TUTTI i conveyor belt consecutivi dalla posizione attuale
+		var conveyor_processed = false
+		var conveyor_iterations = 0
+		var MAX_CONVEYOR_ITERATIONS = 15  # Limite per conveyor belt consecutivi
 		
-		new_pos = next_pos
-
-		if is_deadly_terrain(map, new_pos.x, new_pos.y):
-			break
-		
-		# Salva e trasforma ghiaccio fragile durante lo scivolamento
-		was_fragile_ice = is_fragile_ice(map, new_pos.x, new_pos.y)
-		if was_fragile_ice:
-			map[new_pos.y][new_pos.x] = MapConstants.TERRAIN.BROKEN_ICE
-			new_ice_broken[new_pos] = true
-
-		
-		if is_stopping_terrain(map, new_pos.x, new_pos.y):
-			break
-		
-		# Gestione nastri durante scivolamento
-		if is_conveyor_belt(map, new_pos.x, new_pos.y):
+		while is_conveyor_belt(map, new_pos.x, new_pos.y) and conveyor_iterations < MAX_CONVEYOR_ITERATIONS:
+			conveyor_processed = true
+			conveyor_iterations += 1
+			
+			# Crea una chiave unica per questo conveyor belt (posizione + direzione di input)
+			var conveyor_key = str(new_pos.x) + "," + str(new_pos.y) + "," + str(current_direction.x) + "," + str(current_direction.y)
+			
+			# Se abbiamo già visitato questo conveyor belt con questa direzione, è un loop!
+			if conveyor_key in visited_conveyors:
+				# Loop rilevato! Restituisci la posizione di partenza per indicare "nessun progresso"
+				return create_simulate_move_result_dict(start_pos, map, ice_broken_dict)
+			
+			# Registra questo conveyor belt come visitato
+			visited_conveyors[conveyor_key] = true
+			
 			var conv_dir = get_conveyor_direction(map, new_pos.x, new_pos.y)
 			var new_dir = MapConstants.DIRECTION_VECTORS[conv_dir]
 			var pushed_pos = Vector2i(new_pos.x + new_dir[0], new_pos.y + new_dir[1])
 			
-			if is_valid_position(pushed_pos.x, pushed_pos.y, width, height) and not is_wall(map, pushed_pos.x, pushed_pos.y):
-				if is_deadly_terrain(map, pushed_pos.x, pushed_pos.y):
-					new_pos = pushed_pos
-					break
+			if not is_valid_position(pushed_pos.x, pushed_pos.y, width, height) or is_wall(map, pushed_pos.x, pushed_pos.y):
+				break
 				
+			if is_deadly_terrain(map, pushed_pos.x, pushed_pos.y):
 				new_pos = pushed_pos
-				current_direction = Vector2i(new_dir[0], new_dir[1])
-				
-				# Trasforma ghiaccio fragile dopo spinta durante scivolamento
-				was_fragile_ice = is_fragile_ice(map, new_pos.x, new_pos.y)
-				if was_fragile_ice:
-					map[new_pos.y][new_pos.x] = MapConstants.TERRAIN.BROKEN_ICE
-					new_ice_broken[new_pos] = true
-		
-				
-				if is_stopping_terrain(map, new_pos.x, new_pos.y):
-					break
-			else:
+				return create_simulate_move_result_dict(new_pos, map, new_ice_broken)
+			
+			new_pos = pushed_pos
+			current_direction = Vector2i(new_dir[0], new_dir[1])
+			
+			# Gestisci ghiaccio fragile dopo ogni spinta del conveyor belt
+			var was_fragile_ice_here = is_fragile_ice(map, new_pos.x, new_pos.y)
+			if was_fragile_ice_here:
+				map[new_pos.y][new_pos.x] = MapConstants.TERRAIN.BROKEN_ICE
+				new_ice_broken[new_pos] = true
+			
+			# Se arriviamo su terreno che ferma, usciamo dal loop conveyor belt
+			if is_stopping_terrain(map, new_pos.x, new_pos.y):
 				break
 		
+		# Dopo aver processato tutti i conveyor belt, controlliamo se dobbiamo fermarci
+		if is_stopping_terrain(map, new_pos.x, new_pos.y):
+			break
+			
+		if is_deadly_terrain(map, new_pos.x, new_pos.y):
+			break
+		
+		# Controlla se siamo su ghiaccio ADESSO (non basandoci su stato precedente)
+		var current_is_fragile = is_fragile_ice(map, new_pos.x, new_pos.y)
+		var current_is_ice = is_ice(map, new_pos.x, new_pos.y)
+		var is_on_ice = current_is_ice or current_is_fragile
+		
+		# Se non siamo su ghiaccio e non abbiamo processato conveyor belt, fermiamoci
+		if not is_on_ice and not conveyor_processed:
+			break
+		
+		# Se siamo su ghiaccio, continuiamo a scivolare nella direzione attuale
+		if is_on_ice:
+			var next_pos = Vector2i(new_pos.x + current_direction.x, new_pos.y + current_direction.y)
+			
+			if not is_valid_position(next_pos.x, next_pos.y, width, height) or is_wall(map, next_pos.x, next_pos.y):
+				break
+			
+			new_pos = next_pos
+			
+			# Registra ghiaccio fragile durante scivolamento (non rompere ancora)
+			var fragile_at_next = is_fragile_ice(map, new_pos.x, new_pos.y)
+			if fragile_at_next:
+				new_ice_broken[new_pos] = true
+		
+		# Continua il loop per controllare di nuovo conveyor belt e scivolamento dalla nuova posizione
+	
+	# ALLA FINE: rompi tutti i ghiacci fragili che abbiamo attraversato
+	for pos in new_ice_broken:
+		if is_fragile_ice(map, pos.x, pos.y):
+			map[pos.y][pos.x] = MapConstants.TERRAIN.BROKEN_ICE
+	
 	return create_simulate_move_result_dict(new_pos, map, new_ice_broken)

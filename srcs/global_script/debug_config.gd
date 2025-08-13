@@ -37,12 +37,12 @@ enum Level {
 const CURRENT_PRESET: DebugPreset = DebugPreset.CUSTOM
 
 # Custom settings (used when CURRENT_PRESET is CUSTOM)
-const CUSTOM_DEBUG_LEVEL = Level.INFO
+const CUSTOM_DEBUG_LEVEL = Level.DEBUG
 const CUSTOM_CATEGORIES = {
 	"PLAYER_INPUT": true,       # Player input and movement
 	"MENU": false,               # Menu and UI interactions
 	"NETWORK": true,             # Multiplayer networking
-	"MAP_GENERATION": false,     # Map loading and generation
+	"MAP_GENERATION": true,     # Map loading and generation
 	"MAP_MANAGEMENT": false,     # Map management and operations
 	"GAME_STATE": true,          # Game state changes
 	"ANIMATION": true,           # Animation system

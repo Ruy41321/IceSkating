@@ -156,7 +156,7 @@ func set_tile_at_position(x: int, y: int, source_id: int, atlas_coords: Vector2i
 func determine_map_file_path(map_name: String, difficulty: String) -> String:
 	"""Determine the file path for the map based on configuration"""
 	if test_custom_map:
-		return handle_test_custom_map(map_name)
+		return handle_test_custom_map("test")
 	elif LevelManager.new_map:
 		LevelManager.new_map = false  # Reset for next time
 		return await handle_new_map_generation(map_name, difficulty)
