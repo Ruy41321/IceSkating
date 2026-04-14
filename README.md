@@ -14,7 +14,7 @@
 *A robust anti-cheat system validates all game actions server-side while maintaining responsive gameplay through client prediction.*
 
 ### Procedural Map Generation
-*A sophisticated C++ algorithm generates balanced, solvable cave layouts with appropriate difficulty scaling.*
+*A robust procedural generation algorithm creates balanced, solvable cave layouts with appropriate difficulty scaling.*
 
 ### Client Prediction System
 *A lag compensation system provides immediate visual feedback while ensuring server authority over game state.*
@@ -22,9 +22,8 @@
 ## 🛠️ Technologies Used
 
 ### Game Engine & Development
-- **Engine**: Godot 4.4  
-- **Programming**: GDScript for game logic  
-- **Map Generation**: C++ algorithm for procedural map generation  
+- **Engine**: Godot 4.5  
+- **Programming**: GDScript for game logic and procedural map generation    
 - **Cross-platform**: Windows and Android builds available  
 
 ### Backend Infrastructure
