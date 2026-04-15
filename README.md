@@ -2,7 +2,8 @@
 
 *An innovative puzzle game where players navigate through icy cave environments to find the exit. The game features slippery ice mechanics similar to classic Pokémon ice puzzles, combined with modern multiplayer capabilities and procedural map generation for endless gameplay.*
 
-![Game Preview](extra/Preview.gif)
+**_click on the gif to be redirected to youtube for the full preview_**
+[![Game Preview](extra/Preview.gif)](https://www.youtube.com/watch?v=A_HDVx65Yn8)
 
 ## 🎮 Game Concept
 
